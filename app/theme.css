@@ -40,6 +40,10 @@
   --color-border: light-dark(#e5e5ea, #2c2c2e);
   --color-border-strong: light-dark(#c7c7cc, #48484a);
 
+  /* Materials: translucent bars (used with backdrop-filter) and selection fills */
+  --color-material: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  --color-fill: color-mix(in srgb, var(--color-text) 9%, transparent);
+
   /* Primary: monochrome, inverted per theme (black on light, white on dark) */
   --color-primary: light-dark(var(--palette-near-black), var(--palette-off-white));
   --color-primary-hover: light-dark(#3a3a3c, #d1d1d6);
@@ -121,6 +125,7 @@
   --radius-full: 999px;
 
   /* Typography (inputs never below 16px: iOS zooms on focus otherwise) */
+  --text-caption-2: 0.6875rem;
   --text-caption: 0.8125rem;
   --text-footnote: 0.875rem;
   --text-body: 1rem;
@@ -133,6 +138,7 @@
   /* Touch */
   --touch-target: 44px;
   --control-height: 50px;
+  --tab-bar-height: 62px;
 
   /* Elevation */
   --shadow-sm: 0 1px 2px color-mix(in srgb, var(--palette-black) 6%, transparent);

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-const PROTECTED_PREFIXES = ["/dashboard", "/account", "/objectives"];
+const PROTECTED_PREFIXES = ["/dashboard", "/account", "/objectives", "/settings"];
 const GUEST_ONLY_PATHS = ["/login", "/signup", "/forgot-password"];
 
 export const updateSession = async (request: NextRequest) => {

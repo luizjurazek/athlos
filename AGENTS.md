@@ -26,7 +26,10 @@
 | Usuário no servidor | `app/utils/supabase/user.ts` (`getUser`, `requireUser`) |
 | Telas e actions de auth | `app/(auth)/` (`actions.ts`, `forms.tsx`, páginas) |
 | Callback de email | `app/auth/confirm/route.ts` |
-| Área logada | `app/dashboard/` |
+| Área logada (route group com a navegação) | `app/(app)/` — `layout.tsx`, `dashboard/`, `objectives/`, `settings/` |
+| Navegação: pílula flutuante embaixo no mobile, top bar a partir de 640px | `app/components/AppNav.tsx` |
+| Tipos do banco (à mão, formato `supabase gen types`) | `app/utils/supabase/database.types.ts` |
+| Dias da semana (0 = domingo; semana começa no domingo) | `app/utils/weekdays.ts` |
 | Design tokens (cor light/dark, espaço, raio, tipografia, movimento) | `app/theme.css` |
 | Migrations | `supabase/migrations/` |
 

@@ -1,0 +1,13 @@
+.shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* Keeps the last content clear of the floating mobile tab bar. */
+  padding-bottom: calc(var(--tab-bar-height) + var(--space-4) + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .shell {
+    padding-bottom: 0;
+  }
+}
