@@ -1,7 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/app/utils/supabase/server";
 
 function safeNext(next: string | null) {
   if (next && next.startsWith("/") && !next.startsWith("//")) return next;

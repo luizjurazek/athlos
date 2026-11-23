@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { requireUser } from "@/utils/supabase/user";
+import { requireUser } from "@/app/utils/supabase/user";
 import { ResetPasswordForm } from "../forms";
 import styles from "../auth.module.css";
 

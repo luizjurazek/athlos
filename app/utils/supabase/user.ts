@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/app/utils/supabase/server";
 
 export type AuthUser = {
   id: string;

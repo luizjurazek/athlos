@@ -2,7 +2,7 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/app/utils/supabase/server";
 
 export type FormState = { error?: string; message?: string } | undefined;
 

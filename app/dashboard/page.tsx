@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { logout } from "@/app/(auth)/actions";
-import { createClient } from "@/utils/supabase/server";
-import { requireUser } from "@/utils/supabase/user";
+import { createClient } from "@/app/utils/supabase/server";
+import { requireUser } from "@/app/utils/supabase/user";
 import styles from "./dashboard.module.css";
 
 export default function DashboardPage() {
@@ -28,9 +28,13 @@ async function DashboardContent() {
   return (
     <>
       <header className={styles.header}>
-        <h1 className={styles.title}>Olá, {profile?.full_name || user.email}</h1>
+        <h1 className={styles.title}>
+          Olá, {profile?.full_name || user.email}
+        </h1>
         <form action={logout}>
-          <button className={styles.logout} type="submit">Sair</button>
+          <button className={styles.logout} type="submit">
+            Sair
+          </button>
         </form>
       </header>
       <p className={styles.muted}>Logado como {user.email}</p>
