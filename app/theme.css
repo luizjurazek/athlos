@@ -63,6 +63,29 @@
   --color-danger-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
   --color-success-bg: color-mix(in srgb, var(--color-success) 12%, transparent);
   --color-warning-bg: color-mix(in srgb, var(--color-warning) 12%, transparent);
+
+  /*
+   * Objective tags (user-picked, small badges only). Light values are the iOS
+   * accessible variants so icons keep >= 3:1 on light surfaces.
+   */
+  --color-objective-red: light-dark(#d70015, #ff453a);
+  --color-objective-orange: light-dark(#c93400, #ff9f0a);
+  --color-objective-yellow: light-dark(#a05a00, #ffd60a);
+  --color-objective-green: light-dark(#248a3d, #30d158);
+  --color-objective-teal: light-dark(#0071a4, #40c8e0);
+  --color-objective-blue: light-dark(#0040dd, #0a84ff);
+  --color-objective-purple: light-dark(#8944ab, #bf5af2);
+  --color-objective-pink: light-dark(#d30f45, #ff375f);
+  --color-objective-neutral: var(--color-text-muted);
+  --color-objective-red-bg: color-mix(in srgb, var(--color-objective-red) 14%, transparent);
+  --color-objective-orange-bg: color-mix(in srgb, var(--color-objective-orange) 14%, transparent);
+  --color-objective-yellow-bg: color-mix(in srgb, var(--color-objective-yellow) 14%, transparent);
+  --color-objective-green-bg: color-mix(in srgb, var(--color-objective-green) 14%, transparent);
+  --color-objective-teal-bg: color-mix(in srgb, var(--color-objective-teal) 14%, transparent);
+  --color-objective-blue-bg: color-mix(in srgb, var(--color-objective-blue) 14%, transparent);
+  --color-objective-purple-bg: color-mix(in srgb, var(--color-objective-purple) 14%, transparent);
+  --color-objective-pink-bg: color-mix(in srgb, var(--color-objective-pink) 14%, transparent);
+  --color-objective-neutral-bg: color-mix(in srgb, var(--color-objective-neutral) 14%, transparent);
 }
 
 :root[data-theme="light"] {
