@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" width="800" height="320">
+  <defs>
+    <g id="athlos-mark">
+      
+      <polygon points="90,32 22,158 46,158 90,74 102,96 114,76" fill="#FF6B1A" />
+      
+      <polygon points="106,108 134,158 158,158 120,88" fill="#FF6B1A" />
+      
+      <path d="M 52,158 L 76,120 L 96,120 L 116,86 L 106,80 L 138,60 L 136,98 L 126,92 L 103,132 L 83,132 L 68,158 Z" fill="#FF6B1A" />
+    </g>
+  </defs>
+
+  
+  <rect x="40" y="70" width="180" height="180" rx="38" fill="#132238" />
+  <use href="#athlos-mark" x="40" y="70" />
+
+  
+  <g transform="translate(275, 92) scale(0.84)">
+    <use href="#athlos-mark" x="0" y="0" />
+  </g>
+  
+  <text x="415" y="218" font-family="system-ui, -apple-system, &#39;Segoe UI&#39;, Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="88" letter-spacing="4" fill="#132238">ATHLOS</text>
+</svg>
