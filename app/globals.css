@@ -1,14 +1,4 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+@import "./theme.css";
 
 *,
 *::before,
@@ -28,7 +18,7 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
