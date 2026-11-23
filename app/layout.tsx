@@ -24,8 +24,8 @@ export const viewport: Viewport = {
   // Lets content extend under the notch/home indicator; safe areas are handled via env(safe-area-inset-*).
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffe7d0" },
-    { media: "(prefers-color-scheme: dark)", color: "#1b1b1b" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
 };
 

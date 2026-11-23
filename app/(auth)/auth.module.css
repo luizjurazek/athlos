@@ -72,7 +72,7 @@
 
 .group:focus-within {
   border-color: var(--color-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 22%, transparent);
+  box-shadow: 0 0 0 3px var(--color-accent-bg);
 }
 
 .input {
@@ -128,7 +128,7 @@
   align-items: center;
   min-height: var(--touch-target);
   padding: 0 var(--space-2);
-  color: var(--color-primary-text);
+  color: var(--color-text-muted);
   font-size: var(--text-footnote);
   font-weight: 500;
   text-decoration: none;
@@ -147,7 +147,9 @@
   padding: 0 var(--space-1);
   color: var(--color-primary-text);
   font-weight: 600;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
 }
 
 .error,

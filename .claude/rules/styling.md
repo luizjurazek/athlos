@@ -11,18 +11,18 @@ paths:
 - Estilos globais só em `app/globals.css` (reset, `body`); tokens só em `app/theme.css`.
 
 ## Paleta
-- Marca: `#1B1B1B` (ink), `#323232` (graphite), `#FFE7D0` (cream), `#FC6E20` (orange) e `#132238` (navy, o azul da logo) — primitivas
-  `--palette-*` em `theme.css`. Componentes nunca usam `--palette-*` direto, só `--color-*`.
-- Claro: fundo cream, texto ink. Escuro: fundo ink, superfícies graphite, texto cream.
-- **Laranja é a única cor interativa (tint color, como no iOS):** botões, links, item ativo, foco,
-  toggles. Links usam `--color-primary-text`.
-- **Navy é secundária e não interativa:** identidade (logo), badges, gráficos, estados informativos
-  (`--color-secondary*`). Nunca em link ou botão — azul frio solto ao lado da paleta quente fica desconectado.
-  Nunca como fundo de tela (some sobre ink).
-- Laranja é cor de **ação** (fundo de botão, foco). Texto sobre laranja é sempre `--color-on-primary`
-  (ink); nunca branco nem cream (contraste < 3:1).
-- Laranja como **texto** (links) usa `--color-primary-text`: no claro é um laranja escurecido, porque
-  `#FC6E20` sobre cream tem só 2.4:1.
+- **Monocromática:** preto e branco dominam. Primitivas em `theme.css`: `#FFFFFF`/`#F5F5F7` (brancos),
+  `#1D1D1F`/`#0A0A0A` (pretos), `#FC6E20` (laranja, acento) e `#132238` (navy, só na logo).
+  Componentes nunca usam `--palette-*` direto, só `--color-*`.
+- Claro: fundo branco, superfícies `#F5F5F7`, texto `#1D1D1F`. Escuro: fundo `#0A0A0A`,
+  superfícies `#1C1C1E`, texto `#F5F5F7`. Cinzas no estilo iOS para texto secundário e bordas.
+- **Botão principal é monocromático e invertido:** preto com texto branco no claro, branco com texto
+  preto no escuro (`--color-primary` / `--color-on-primary`).
+- **Links:** cor do texto, peso 600 e sublinhado discreto — não use cor para destacar link.
+- **Laranja é acento pequeno:** foco (`--color-focus`), destaques pontuais, badges (`--color-accent*`).
+  Nunca como fundo de áreas grandes nem em vários elementos da mesma tela. Como texto no claro, use
+  `--color-accent-text` (laranja puro sobre branco não passa em contraste).
+- **Navy só na identidade (logo).** Não use em UI.
 - Cor nova: confira contraste ≥ 4.5:1 para texto nos dois temas antes de criar o token.
 
 ## Cores

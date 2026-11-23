@@ -4,63 +4,62 @@
  * Two layers:
  *   1. --palette-*: the brand palette. Raw values live only here.
  *   2. --color-*: semantic tokens used by components, each defined once with
- *      light-dark(<light>, <dark>) and derived from the palette when possible.
+ *      light-dark(<light>, <dark>).
  *
  * The active value depends on `color-scheme`:
  *   - default: follows the OS setting (prefers-color-scheme);
  *   - <html data-theme="light">: forces light;
  *   - <html data-theme="dark">: forces dark.
- * A future Settings page only needs to set (or remove) `data-theme` on <html>.
  *
- * Contrast notes (WCAG): orange on cream is only 2.4:1, so orange is never
- * used as text on light surfaces (use --color-primary-text), and text on an
- * orange background is always ink (6:1), never white (2.8:1).
- * Navy (the logo blue) is the secondary color, not a background: on ink it is
- * nearly invisible (1.08:1), so dark mode uses lighter navy variants.
+ * Direction: monochrome first. White and near-black make up almost the whole
+ * UI (primary button included, inverted per theme). Orange is a small accent
+ * (focus, highlights); navy only appears in the logo.
  */
 
 :root {
   color-scheme: light dark;
 
   /* Brand palette */
-  --palette-ink: #1b1b1b;
-  --palette-graphite: #323232;
-  --palette-cream: #ffe7d0;
+  --palette-black: #0a0a0a;
+  --palette-near-black: #1d1d1f;
+  --palette-white: #ffffff;
+  --palette-off-white: #f5f5f7;
   --palette-orange: #fc6e20;
   --palette-navy: #132238;
 
   /* Surfaces */
-  --color-bg: light-dark(var(--palette-cream), var(--palette-ink));
-  --color-surface: light-dark(#fff3e8, var(--palette-graphite));
-  --color-surface-muted: light-dark(#edd7c2, #464442);
+  --color-bg: light-dark(var(--palette-white), var(--palette-black));
+  --color-surface: light-dark(var(--palette-off-white), #1c1c1e);
+  --color-surface-muted: light-dark(#ebebed, #2c2c2e);
 
   /* Text */
-  --color-text: light-dark(var(--palette-ink), var(--palette-cream));
-  --color-text-muted: light-dark(#5f5851, #bbaa9a);
+  --color-text: light-dark(var(--palette-near-black), var(--palette-off-white));
+  --color-text-muted: light-dark(#6e6e73, #a1a1a6);
 
   /* Borders */
-  --color-border: light-dark(#d1beac, #5b5652);
-  --color-border-strong: light-dark(#afa091, #7a7169);
+  --color-border: light-dark(#e5e5ea, #2c2c2e);
+  --color-border-strong: light-dark(#c7c7cc, #48484a);
 
-  /* Primary (orange): main action, focus */
-  --color-primary: var(--palette-orange);
-  --color-primary-hover: light-dark(#e25f17, #fd8a4c);
-  --color-on-primary: var(--palette-ink);
-  --color-primary-text: light-dark(#a44815, var(--palette-orange));
+  /* Primary: monochrome, inverted per theme (black on light, white on dark) */
+  --color-primary: light-dark(var(--palette-near-black), var(--palette-off-white));
+  --color-primary-hover: light-dark(#3a3a3c, #d1d1d6);
+  --color-on-primary: light-dark(var(--palette-white), var(--palette-black));
+  --color-primary-text: light-dark(var(--palette-near-black), var(--palette-off-white));
+
+  /* Accent (orange): focus and small highlights only */
+  --color-accent: var(--palette-orange);
+  --color-accent-text: light-dark(#c2410c, var(--palette-orange));
+  --color-accent-bg: color-mix(in srgb, var(--palette-orange) 12%, transparent);
   --color-focus: var(--palette-orange);
 
-  /* Secondary (navy): brand identity and informational accents only (badges,
-     charts, info states). Never for interactive elements: orange is the single tint. */
+  /* Secondary (navy): brand identity only (logo) */
   --color-secondary: light-dark(var(--palette-navy), #3d63a0);
-  --color-secondary-hover: light-dark(#1e304b, #4a70ad);
-  --color-on-secondary: var(--palette-cream);
   --color-secondary-text: light-dark(var(--palette-navy), #8fabd6);
-  --color-secondary-bg: color-mix(in srgb, var(--color-secondary) 12%, transparent);
 
   /* Feedback */
-  --color-danger: light-dark(#b91c1c, #f87171);
-  --color-success: light-dark(#166534, #4ade80);
-  --color-warning: light-dark(#92400e, #fbbf24);
+  --color-danger: light-dark(#d70015, #ff6961);
+  --color-success: light-dark(#1e7a35, #30d158);
+  --color-warning: light-dark(#b25000, #ffd60a);
   --color-danger-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
   --color-success-bg: color-mix(in srgb, var(--color-success) 12%, transparent);
   --color-warning-bg: color-mix(in srgb, var(--color-warning) 12%, transparent);
@@ -113,8 +112,8 @@
   --control-height: 50px;
 
   /* Elevation */
-  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--palette-ink) 8%, transparent);
-  --shadow-md: 0 4px 16px color-mix(in srgb, var(--palette-ink) 10%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--palette-black) 6%, transparent);
+  --shadow-md: 0 4px 16px color-mix(in srgb, var(--palette-black) 8%, transparent);
 
   /* Motion */
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
