@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Athlos",
   description: "Athlos",
+  applicationName: "Athlos",
+  // iOS ignores the manifest's display mode; this meta is what opens the home-screen icon full screen.
+  appleWebApp: {
+    capable: true,
+    title: "Athlos",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
