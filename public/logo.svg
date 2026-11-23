@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
   
-  <rect width="120" height="120" rx="28" fill="#13223A" />
+  <rect width="120" height="120" rx="28" fill="#132238" />
   
   
-  <g fill="#F8681C">
+  <g fill="#FC6E20">
     
     <polygon points="24,90 36,90 54,54 48,42" />
     
