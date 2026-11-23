@@ -11,9 +11,14 @@ paths:
 - Estilos globais só em `app/globals.css` (reset, `body`); tokens só em `app/theme.css`.
 
 ## Paleta
-- Marca: `#1B1B1B` (ink), `#323232` (graphite), `#FFE7D0` (cream), `#FC6E20` (orange) — primitivas
+- Marca: `#1B1B1B` (ink), `#323232` (graphite), `#FFE7D0` (cream), `#FC6E20` (orange) e `#132238` (navy, o azul da logo) — primitivas
   `--palette-*` em `theme.css`. Componentes nunca usam `--palette-*` direto, só `--color-*`.
 - Claro: fundo cream, texto ink. Escuro: fundo ink, superfícies graphite, texto cream.
+- **Laranja é a única cor interativa (tint color, como no iOS):** botões, links, item ativo, foco,
+  toggles. Links usam `--color-primary-text`.
+- **Navy é secundária e não interativa:** identidade (logo), badges, gráficos, estados informativos
+  (`--color-secondary*`). Nunca em link ou botão — azul frio solto ao lado da paleta quente fica desconectado.
+  Nunca como fundo de tela (some sobre ink).
 - Laranja é cor de **ação** (fundo de botão, foco). Texto sobre laranja é sempre `--color-on-primary`
   (ink); nunca branco nem cream (contraste < 3:1).
 - Laranja como **texto** (links) usa `--color-primary-text`: no claro é um laranja escurecido, porque
