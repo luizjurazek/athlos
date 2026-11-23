@@ -21,6 +21,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // Browser extensions (e.g. LanguageTool) inject attributes on <html>.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
       <body>{children}</body>
