@@ -15,6 +15,8 @@
  * Contrast notes (WCAG): orange on cream is only 2.4:1, so orange is never
  * used as text on light surfaces (use --color-primary-text), and text on an
  * orange background is always ink (6:1), never white (2.8:1).
+ * Navy (the logo blue) is the secondary color, not a background: on ink it is
+ * nearly invisible (1.08:1), so dark mode uses lighter navy variants.
  */
 
 :root {
@@ -25,6 +27,7 @@
   --palette-graphite: #323232;
   --palette-cream: #ffe7d0;
   --palette-orange: #fc6e20;
+  --palette-navy: #132238;
 
   /* Surfaces */
   --color-bg: light-dark(var(--palette-cream), var(--palette-ink));
@@ -39,12 +42,20 @@
   --color-border: light-dark(#d1beac, #5b5652);
   --color-border-strong: light-dark(#afa091, #7a7169);
 
-  /* Brand / actions */
+  /* Primary (orange): main action, focus */
   --color-primary: var(--palette-orange);
   --color-primary-hover: light-dark(#e25f17, #fd8a4c);
   --color-on-primary: var(--palette-ink);
   --color-primary-text: light-dark(#a44815, var(--palette-orange));
   --color-focus: var(--palette-orange);
+
+  /* Secondary (navy): brand identity and informational accents only (badges,
+     charts, info states). Never for interactive elements: orange is the single tint. */
+  --color-secondary: light-dark(var(--palette-navy), #3d63a0);
+  --color-secondary-hover: light-dark(#1e304b, #4a70ad);
+  --color-on-secondary: var(--palette-cream);
+  --color-secondary-text: light-dark(var(--palette-navy), #8fabd6);
+  --color-secondary-bg: color-mix(in srgb, var(--color-secondary) 12%, transparent);
 
   /* Feedback */
   --color-danger: light-dark(#b91c1c, #f87171);

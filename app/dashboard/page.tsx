@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { logout } from "@/app/(auth)/actions";
+import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import styles from "./dashboard.module.css";
@@ -10,11 +11,14 @@ export default function DashboardPage() {
     <div className={styles.page}>
       <nav className={styles.navbar}>
         <span className={styles.brand}>Athlos</span>
-        <form action={logout}>
-          <button className={styles.logout} type="submit">
-            Sair
-          </button>
-        </form>
+        <div className={styles.actions}>
+          <ThemeToggle />
+          <form action={logout}>
+            <button className={styles.logout} type="submit">
+              Sair
+            </button>
+          </form>
+        </div>
       </nav>
       <main className={styles.content}>
         {/* Session reads happen at request time, so they stream in behind Suspense. */}

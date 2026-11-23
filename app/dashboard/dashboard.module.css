@@ -24,7 +24,13 @@
 
 .brand {
   font-size: var(--text-headline);
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .logout {

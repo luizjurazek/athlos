@@ -5,7 +5,10 @@ import styles from "../auth.module.css";
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>
-      <h1 className={styles.title}>Entrar</h1>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Entrar no Athlos</h1>
+        <p className={styles.subtitle}>Use seu email e senha para continuar.</p>
+      </header>
       <Suspense fallback={<LoginForm />}>
         <LoginFormWithError searchParams={searchParams} />
       </Suspense>

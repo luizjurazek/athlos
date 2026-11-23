@@ -1,0 +1,59 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.toggle:active {
+  transform: scale(0.92);
+}
+
+.toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Light active: show the moon (switch to dark). Dark active: show the sun. */
+.sun {
+  display: none;
+}
+
+:global(:root[data-theme="dark"]) .sun {
+  display: block;
+}
+
+:global(:root[data-theme="dark"]) .moon {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .sun {
+    display: block;
+  }
+
+  :global(:root:not([data-theme="light"])) .moon {
+    display: none;
+  }
+}
+
+@media (hover: hover) {
+  .toggle:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+  }
+}

@@ -13,7 +13,7 @@ import styles from "./auth.module.css";
 
 function Feedback({ state }: { state: FormState }) {
   if (state?.error) return <p className={styles.error} role="alert">{state.error}</p>;
-  if (state?.message) return <p className={styles.success}>{state.message}</p>;
+  if (state?.message) return <p className={styles.success} role="status">{state.message}</p>;
   return null;
 }
 
@@ -26,22 +26,20 @@ export function LoginForm({ initialError }: { initialError?: string }) {
     <>
       <form action={action} className={styles.form}>
         <Feedback state={state} />
-        <label className={styles.field}>
-          Email
-          <input className={styles.input} name="email" type="email" autoComplete="email" required />
-        </label>
-        <label className={styles.field}>
-          Senha
-          <input className={styles.input} name="password" type="password" autoComplete="current-password" required />
-        </label>
+        <div className={styles.group}>
+          <input className={styles.input} name="email" type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" required />
+          <input className={styles.input} name="password" type="password" autoComplete="current-password" placeholder="Senha" aria-label="Senha" required />
+        </div>
         <button className={styles.button} type="submit" disabled={pending}>
           {pending ? "Entrando..." : "Entrar"}
         </button>
+        <Link className={styles.inlineLink} href="/forgot-password">
+          Esqueceu a senha?
+        </Link>
       </form>
-      <div className={styles.links}>
-        <Link href="/signup">Criar conta</Link>
-        <Link href="/forgot-password">Esqueci a senha</Link>
-      </div>
+      <p className={styles.footer}>
+        Não tem uma conta? <Link href="/signup">Criar conta</Link>
+      </p>
     </>
   );
 }
@@ -52,29 +50,21 @@ export function SignupForm() {
     <>
       <form action={action} className={styles.form}>
         <Feedback state={state} />
-        <label className={styles.field}>
-          Nome
-          <input className={styles.input} name="full_name" type="text" autoComplete="name" />
-        </label>
-        <label className={styles.field}>
-          Email
-          <input className={styles.input} name="email" type="email" autoComplete="email" required />
-        </label>
-        <label className={styles.field}>
-          Senha
-          <input className={styles.input} name="password" type="password" autoComplete="new-password" minLength={8} required />
-        </label>
-        <label className={styles.field}>
-          Confirmar senha
-          <input className={styles.input} name="confirm_password" type="password" autoComplete="new-password" minLength={8} required />
-        </label>
+        <div className={styles.group}>
+          <input className={styles.input} name="full_name" type="text" autoComplete="name" placeholder="Nome" aria-label="Nome" />
+          <input className={styles.input} name="email" type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" required />
+        </div>
+        <div className={styles.group}>
+          <input className={styles.input} name="password" type="password" autoComplete="new-password" minLength={8} placeholder="Senha (mín. 8 caracteres)" aria-label="Senha" required />
+          <input className={styles.input} name="confirm_password" type="password" autoComplete="new-password" minLength={8} placeholder="Confirmar senha" aria-label="Confirmar senha" required />
+        </div>
         <button className={styles.button} type="submit" disabled={pending}>
           {pending ? "Criando..." : "Criar conta"}
         </button>
       </form>
-      <div className={styles.links}>
-        <Link href="/login">Já tenho conta</Link>
-      </div>
+      <p className={styles.footer}>
+        Já tem uma conta? <Link href="/login">Entrar</Link>
+      </p>
     </>
   );
 }
@@ -85,17 +75,16 @@ export function ForgotPasswordForm() {
     <>
       <form action={action} className={styles.form}>
         <Feedback state={state} />
-        <label className={styles.field}>
-          Email
-          <input className={styles.input} name="email" type="email" autoComplete="email" required />
-        </label>
+        <div className={styles.group}>
+          <input className={styles.input} name="email" type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" required />
+        </div>
         <button className={styles.button} type="submit" disabled={pending}>
           {pending ? "Enviando..." : "Enviar link"}
         </button>
       </form>
-      <div className={styles.links}>
-        <Link href="/login">Voltar ao login</Link>
-      </div>
+      <p className={styles.footer}>
+        Lembrou a senha? <Link href="/login">Entrar</Link>
+      </p>
     </>
   );
 }
@@ -105,14 +94,10 @@ export function ResetPasswordForm() {
   return (
     <form action={action} className={styles.form}>
       <Feedback state={state} />
-      <label className={styles.field}>
-        Nova senha
-        <input className={styles.input} name="password" type="password" autoComplete="new-password" minLength={8} required />
-      </label>
-      <label className={styles.field}>
-        Confirmar nova senha
-        <input className={styles.input} name="confirm_password" type="password" autoComplete="new-password" minLength={8} required />
-      </label>
+      <div className={styles.group}>
+        <input className={styles.input} name="password" type="password" autoComplete="new-password" minLength={8} placeholder="Nova senha" aria-label="Nova senha" required />
+        <input className={styles.input} name="confirm_password" type="password" autoComplete="new-password" minLength={8} placeholder="Confirmar nova senha" aria-label="Confirmar nova senha" required />
+      </div>
       <button className={styles.button} type="submit" disabled={pending}>
         {pending ? "Salvando..." : "Salvar senha"}
       </button>

@@ -6,7 +6,10 @@ import styles from "../auth.module.css";
 export default function ResetPasswordPage() {
   return (
     <>
-      <h1 className={styles.title}>Definir nova senha</h1>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Definir nova senha</h1>
+        <p className={styles.subtitle}>Escolha uma senha com pelo menos 8 caracteres.</p>
+      </header>
       <Suspense fallback={<p className={styles.subtitle}>Carregando...</p>}>
         <ResetPasswordGate />
       </Suspense>
