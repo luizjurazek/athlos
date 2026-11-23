@@ -10,6 +10,16 @@ paths:
 - **Sem Tailwind** e sem libs de UI/CSS-in-JS. Use CSS Modules (`*.module.css` ao lado do componente).
 - Estilos globais só em `app/globals.css` (reset, `body`); tokens só em `app/theme.css`.
 
+## Paleta
+- Marca: `#1B1B1B` (ink), `#323232` (graphite), `#FFE7D0` (cream), `#FC6E20` (orange) — primitivas
+  `--palette-*` em `theme.css`. Componentes nunca usam `--palette-*` direto, só `--color-*`.
+- Claro: fundo cream, texto ink. Escuro: fundo ink, superfícies graphite, texto cream.
+- Laranja é cor de **ação** (fundo de botão, foco). Texto sobre laranja é sempre `--color-on-primary`
+  (ink); nunca branco nem cream (contraste < 3:1).
+- Laranja como **texto** (links) usa `--color-primary-text`: no claro é um laranja escurecido, porque
+  `#FC6E20` sobre cream tem só 2.4:1.
+- Cor nova: confira contraste ≥ 4.5:1 para texto nos dois temas antes de criar o token.
+
 ## Cores
 - Use **apenas** os tokens semânticos de `app/theme.css` (`--color-bg`, `--color-surface`,
   `--color-text`, `--color-text-muted`, `--color-border`, `--color-primary`, `--color-danger`, …).

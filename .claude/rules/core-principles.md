@@ -3,7 +3,7 @@ description: Princípios gerais de implementação do athlos
 paths:
   - "app/**/*.ts"
   - "app/**/*.tsx"
-  - "utils/**/*.ts"
+  - "app/utils/**/*.ts"
   - "proxy.ts"
 ---
 

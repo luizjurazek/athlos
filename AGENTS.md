@@ -14,19 +14,20 @@
 
 - Next.js 16.4 (App Router, `cacheComponents` e `partialPrefetching` ligados), React 19, TypeScript.
 - Supabase (`@supabase/ssr`) para auth e banco; sessão renovada em `proxy.ts`.
-- CSS Modules + tokens de cor em `app/theme.css`. **Sem Tailwind.**
+- CSS Modules + tokens (cor, espaço, raio, tipografia, movimento) em `app/theme.css`. **Sem Tailwind.**
+- Design inspirado na Apple, **mobile-first**: toda tela nasce para ~375px e depois amplia para desktop.
 
 ## Mapa do projeto
 
 | O quê | Onde |
 |---|---|
-| Proxy (antigo middleware) | `proxy.ts` → `utils/supabase/proxy.ts` (`updateSession`, rotas protegidas) |
-| Clientes Supabase | `utils/supabase/server.ts`, `client.ts` |
-| Usuário no servidor | `utils/supabase/user.ts` (`getUser`, `requireUser`) |
+| Proxy (antigo middleware) | `proxy.ts` → `app/utils/supabase/proxy.ts` (`updateSession`, rotas protegidas) |
+| Clientes Supabase | `app/utils/supabase/server.ts`, `client.ts` |
+| Usuário no servidor | `app/utils/supabase/user.ts` (`getUser`, `requireUser`) |
 | Telas e actions de auth | `app/(auth)/` (`actions.ts`, `forms.tsx`, páginas) |
 | Callback de email | `app/auth/confirm/route.ts` |
 | Área logada | `app/dashboard/` |
-| Tokens de cor (light/dark) | `app/theme.css` |
+| Design tokens (cor light/dark, espaço, raio, tipografia, movimento) | `app/theme.css` |
 | Migrations | `supabase/migrations/` |
 
 ## Rules
@@ -39,9 +40,10 @@
 
 ### Por tarefa
 
-- `core-principles` — sem dependência nova, sem `any`, copiar padrões existentes; `app/**`, `utils/**`, `proxy.ts`.
+- `core-principles` — sem dependência nova, sem `any`, copiar padrões existentes; `app/**`, `app/utils/**`, `proxy.ts`.
 - `nextjs` — particularidades do Next 16 (proxy, Cache Components, Suspense, `connection()`).
 - `supabase-auth` — `getClaims()` no servidor, Server Actions, proxy e callback de email.
+- `design` — visual inspirado na Apple e **mobile-first** (prioridade sempre mobile); alvos de toque, safe areas, tokens de espaço/raio/tipografia/movimento.
 - `styling` — CSS Modules e tokens de `theme.css`; nada de cor fixa nem Tailwind.
 - `migrations` — SQL em `supabase/migrations`: RLS sempre, `security definer` com `search_path = ''`.
 

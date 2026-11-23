@@ -11,7 +11,7 @@ paths:
 
 ## Proxy, não middleware
 - O arquivo é `proxy.ts` na raiz, com `export async function proxy(request)`. `middleware.ts` é obsoleto.
-- A lógica fica em `utils/supabase/proxy.ts`; `proxy.ts` só delega e define o `matcher`.
+- A lógica fica em `app/utils/supabase/proxy.ts`; `proxy.ts` só delega e define o `matcher`.
 
 ## Cache Components (`cacheComponents: true`)
 - Tudo que lê a requisição (`cookies()`, `headers()`, `searchParams`, sessão) precisa estar **dentro de

@@ -1,7 +1,7 @@
 ---
 description: Autenticação com Supabase (SSR) — sessão, proxy, actions e callback de email
 paths:
-  - "utils/supabase/**"
+  - "app/utils/supabase/**"
   - "app/(auth)/**"
   - "app/auth/**"
   - "app/dashboard/**"
@@ -11,13 +11,13 @@ paths:
 # Supabase Auth
 
 ## Sessão no servidor
-- Use `getUser()` / `requireUser()` de `utils/supabase/user.ts`. Eles chamam `getClaims()`, que
+- Use `getUser()` / `requireUser()` de `app/utils/supabase/user.ts`. Eles chamam `getClaims()`, que
   **valida a assinatura** do JWT.
 - **Nunca** use `getSession()` no servidor para autorizar algo: ele só decodifica o cookie, que é
   controlado pelo cliente. No browser, `getSession()` serve só para decidir UI.
-- Crie o client com `createClient(await cookies())` de `utils/supabase/server.ts`.
+- Crie o client com `createClient(await cookies())` de `app/utils/supabase/server.ts`.
 
-## Proxy (`utils/supabase/proxy.ts`)
+## Proxy (`app/utils/supabase/proxy.ts`)
 - Não coloque código entre `createServerClient` e `getClaims()`; sempre devolva `supabaseResponse`
   (ou um redirect que copie os cookies dele — `redirectWithCookies`).
 - `PROTECTED_PREFIXES` usa `startsWith`: **nunca adicione `"/"`** (casa com tudo, inclusive `/login`,
