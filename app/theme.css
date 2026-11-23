@@ -1,0 +1,51 @@
+/*
+ * Color tokens.
+ *
+ * Every token is defined once with light-dark(<light>, <dark>); the value used
+ * depends on the active `color-scheme`:
+ *   - default: follows the OS setting (prefers-color-scheme);
+ *   - <html data-theme="light">: forces light;
+ *   - <html data-theme="dark">: forces dark.
+ * A future Settings page only needs to set (or remove) `data-theme` on <html>.
+ *
+ * Components must use these semantic tokens, never raw color values.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --color-bg: light-dark(#ffffff, #0a0a0a);
+  --color-surface: light-dark(#f7f7f8, #141416);
+  --color-surface-muted: light-dark(#efeff1, #1c1c1f);
+
+  /* Text */
+  --color-text: light-dark(#171717, #ededed);
+  --color-text-muted: light-dark(#5f5f66, #a1a1aa);
+
+  /* Borders */
+  --color-border: light-dark(#e4e4e7, #27272a);
+  --color-border-strong: light-dark(#c9c9cf, #3f3f46);
+
+  /* Brand / actions */
+  --color-primary: light-dark(#2563eb, #3b82f6);
+  --color-primary-hover: light-dark(#1d4ed8, #60a5fa);
+  --color-on-primary: #ffffff;
+  --color-focus: light-dark(#3b82f6, #60a5fa);
+
+  /* Feedback */
+  --color-danger: light-dark(#dc2626, #f87171);
+  --color-success: light-dark(#16a34a, #4ade80);
+  --color-warning: light-dark(#d97706, #fbbf24);
+  --color-danger-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  --color-success-bg: color-mix(in srgb, var(--color-success) 12%, transparent);
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 12%, transparent);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
