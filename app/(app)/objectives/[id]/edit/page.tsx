@@ -18,8 +18,6 @@ import styles from "../../objectives.module.css";
 export default function EditObjectivePage({ params }: PageProps<"/objectives/[id]/edit">) {
   return (
     <main className={styles.content}>
-      <BackLink href="/objectives" label="Objetivos" />
-      <h1 className={styles.title}>Editar objetivo</h1>
       <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
         <EditObjective params={params} />
       </Suspense>
@@ -42,6 +40,8 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
 
   return (
     <>
+      <BackLink href={`/objectives/${id}`} label={objective.title} />
+      <h1 className={styles.title}>Editar objetivo</h1>
       <ObjectiveForm
         action={updateObjective.bind(null, id)}
         objective={objective}

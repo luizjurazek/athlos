@@ -70,7 +70,7 @@ function ObjectiveRows({ objectives }: { objectives: Objective[] }) {
     <ul className={`${styles.list} ${styles.cardGrid}`}>
       {objectives.map((objective) => (
         <li key={objective.id}>
-          <Link className={styles.row} href={`/objectives/${objective.id}/edit`}>
+          <Link className={styles.row} href={`/objectives/${objective.id}`}>
             <ObjectiveBadge color={objective.color} icon={objective.icon} />
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>{objective.title}</span>

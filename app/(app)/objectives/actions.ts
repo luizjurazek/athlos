@@ -183,7 +183,7 @@ export async function updateObjective(
     return { error: "O objetivo foi salvo, mas não deu para atualizar as metas. Tente de novo." };
   }
 
-  redirect("/objectives");
+  redirect(`/objectives/${id}`);
 }
 
 async function setArchived(id: string, archived: boolean) {
@@ -193,7 +193,7 @@ async function setArchived(id: string, archived: boolean) {
     .from("objectives")
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq("id", id);
-  redirect("/objectives");
+  redirect(`/objectives/${id}`);
 }
 
 export async function archiveObjective(id: string) {
