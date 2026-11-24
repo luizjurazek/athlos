@@ -29,6 +29,22 @@
   display: none;
 }
 
+.skeletonHeading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeletonStrip {
+  display: flex;
+  gap: var(--space-1);
+  overflow: hidden;
+}
+
+.skeletonStrip .stripDay {
+  padding-top: var(--space-2);
+}
+
 .stripDay {
   flex: 0 0 auto;
   min-width: var(--touch-target);

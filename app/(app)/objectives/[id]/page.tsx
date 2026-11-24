@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
+import { PendingLink, PendingNavigation, PendingRegion } from "@/app/components/PendingNavigation";
 import {
   LoadingStatus,
   Skeleton,
@@ -246,60 +247,64 @@ function Calendar({
   const monthHref = (day: string) => `/objectives/${objectiveId}?month=${day.slice(0, 7)}`;
 
   return (
-    <section className={styles.calendar} aria-labelledby="calendar-title">
-      <div className={styles.calendarHeader}>
-        <h2 id="calendar-title" className={styles.calendarTitle}>
-          {formatMonthYear(month)}
-        </h2>
-        <div className={styles.calendarNav}>
-          <MonthLink href={canGoBack ? monthHref(addMonths(month, -1)) : null} label="Mês anterior">
-            <path d="m15 5-7 7 7 7" />
-          </MonthLink>
-          <MonthLink href={canGoForward ? monthHref(nextMonth) : null} label="Próximo mês">
-            <path d="m9 5 7 7-7 7" />
-          </MonthLink>
-        </div>
-      </div>
-
-      <div className={styles.calendarGrid} role="table" aria-labelledby="calendar-title">
-        <div role="row" className={styles.calendarRow}>
-          {WEEKDAYS.map((weekday) => (
-            <span key={weekday.value} role="columnheader" className={styles.calendarWeekday}>
-              <abbr title={weekday.long}>{weekday.short}</abbr>
-            </span>
-          ))}
-        </div>
-        {chunkWeeks(leading, days).map((week, index) => (
-          <div key={index} role="row" className={styles.calendarRow}>
-            {week.map((day, cell) =>
-              day ? (
-                <span
-                  key={day}
-                  role="cell"
-                  className={styles.calendarDay}
-                  data-state={getState(day)}
-                  data-received={received.has(day) || undefined}
-                  data-today={day === today || undefined}
-                  aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", recebeu realocação" : ""}`}
-                >
-                  {Number(day.slice(8))}
-                </span>
-              ) : (
-                <span key={`empty-${cell}`} role="cell" />
-              ),
-            )}
+    <PendingNavigation>
+      <section className={styles.calendar} aria-labelledby="calendar-title">
+        <div className={styles.calendarHeader}>
+          <h2 id="calendar-title" className={styles.calendarTitle}>
+            {formatMonthYear(month)}
+          </h2>
+          <div className={styles.calendarNav}>
+            <MonthLink href={canGoBack ? monthHref(addMonths(month, -1)) : null} label="Mês anterior">
+              <path d="m15 5-7 7 7 7" />
+            </MonthLink>
+            <MonthLink href={canGoForward ? monthHref(nextMonth) : null} label="Próximo mês">
+              <path d="m9 5 7 7-7 7" />
+            </MonthLink>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <ul className={styles.calendarLegend}>
-        <li data-state="done">Feito</li>
-        <li data-state="missed">Faltou</li>
-        <li data-state="scheduled">Programado</li>
-        <li data-state="received">Recebeu realocação</li>
-        <li data-state="moved">Mudou de dia</li>
-      </ul>
-    </section>
+        <PendingRegion>
+          <div className={styles.calendarGrid} role="table" aria-labelledby="calendar-title">
+            <div role="row" className={styles.calendarRow}>
+              {WEEKDAYS.map((weekday) => (
+                <span key={weekday.value} role="columnheader" className={styles.calendarWeekday}>
+                  <abbr title={weekday.long}>{weekday.short}</abbr>
+                </span>
+              ))}
+            </div>
+            {chunkWeeks(leading, days).map((week, index) => (
+              <div key={index} role="row" className={styles.calendarRow}>
+                {week.map((day, cell) =>
+                  day ? (
+                    <span
+                      key={day}
+                      role="cell"
+                      className={styles.calendarDay}
+                      data-state={getState(day)}
+                      data-received={received.has(day) || undefined}
+                      data-today={day === today || undefined}
+                      aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", recebeu realocação" : ""}`}
+                    >
+                      {Number(day.slice(8))}
+                    </span>
+                  ) : (
+                    <span key={`empty-${cell}`} role="cell" />
+                  ),
+                )}
+              </div>
+            ))}
+          </div>
+      </PendingRegion>
+
+        <ul className={styles.calendarLegend}>
+          <li data-state="done">Feito</li>
+          <li data-state="missed">Faltou</li>
+          <li data-state="scheduled">Programado</li>
+          <li data-state="received">Recebeu realocação</li>
+          <li data-state="moved">Mudou de dia</li>
+        </ul>
+      </section>
+    </PendingNavigation>
   );
 }
 
@@ -333,8 +338,8 @@ function MonthLink({
     );
   }
   return (
-    <Link className={styles.monthLink} href={href} scroll={false} aria-label={label}>
+    <PendingLink className={styles.monthLink} href={href} pendingKey={href} aria-label={label}>
       {icon}
-    </Link>
+    </PendingLink>
   );
 }

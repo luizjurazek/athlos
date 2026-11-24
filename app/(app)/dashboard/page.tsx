@@ -2,6 +2,14 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { cookies } from "next/headers";
 import { isWithinBackfill } from "@/app/utils/checks";
+import { PendingNavigation, PendingSwap } from "@/app/components/PendingNavigation";
+import {
+  LoadingStatus,
+  Skeleton,
+  SkeletonCard,
+  SkeletonList,
+  SkeletonSectionTitle,
+} from "@/app/components/Skeleton";
 import {
   addDays,
   formatLongDate,
@@ -22,7 +30,8 @@ import {
   type DayData,
   type StripDay,
 } from "./day-objectives";
-import { StripScroller } from "./strip-scroller";
+import { DayHeading } from "./day-heading";
+import { StripDayLink, StripScroller } from "./strip-scroller";
 import { GoalsSummary } from "./goals-summary";
 import { PendingPanel, TodayView } from "./today-view";
 import styles from "./dashboard.module.css";
@@ -30,43 +39,33 @@ import styles from "./dashboard.module.css";
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
     <main className={styles.content}>
-      <Suspense fallback={<Header title="Hoje" subtitle="Carregando..." />}>
-        <TodayContent searchParams={searchParams} />
-      </Suspense>
+      <PendingNavigation>
+        <Suspense fallback={<DashboardSkeleton />}>
+          <TodayContent searchParams={searchParams} />
+        </Suspense>
+      </PendingNavigation>
     </main>
   );
 }
 
 function Header({
-  title,
-  subtitle,
+  heading,
   action,
   strip,
 }: {
-  title: string;
-  subtitle: string;
+  heading: ReactNode;
   action?: ReactNode;
   strip?: ReactNode;
 }) {
   return (
     <div className={styles.headerArea}>
       <header className={styles.header}>
-        <div>
-          <h1 className={styles.title}>{title}</h1>
-          <p className={styles.subtitle}>{subtitle}</p>
-        </div>
+        {heading}
         {action}
       </header>
       {strip}
     </div>
   );
-}
-
-function getDayTitle(day: string, today: string) {
-  if (day === today) return "Hoje";
-  if (day === addDays(today, -1)) return "Ontem";
-  if (day === addDays(today, 1)) return "Amanhã";
-  return WEEKDAYS[getWeekday(day)].long;
 }
 
 function isStripDay(day: string, today: string) {
@@ -85,8 +84,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     typeof requested === "string" && isDay(requested) && isStripDay(requested, today)
       ? requested
       : today;
-  const title = getDayTitle(day, today);
-  const dateLabel = formatLongDate(day);
+  const heading = <DayHeading day={day} today={today} />;
 
   let data: DayData;
   try {
@@ -95,7 +93,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     console.error("Failed to load the day's objectives", error);
     return (
       <>
-        <Header title={title} subtitle={dateLabel} />
+        <Header heading={heading} />
         <p className={styles.error}>
           Não foi possível carregar este dia. Atualize a página.
         </p>
@@ -107,8 +105,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     return (
       <>
         <Header
-          title={title}
-          subtitle={dateLabel}
+          heading={heading}
           action={
             <Link
               className={`${styles.button} ${styles.headerAction}`}
@@ -136,8 +133,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
 
   const header = (
     <Header
-      title={title}
-      subtitle={dateLabel}
+      heading={heading}
       strip={<DayStrip days={data.strip} selected={day} today={today} />}
     />
   );
@@ -152,40 +148,42 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     return (
       <>
         {header}
-        <EmptyCard
-          icon={<CalendarIcon />}
-          title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
-        >
-          {data.movedAway.length > 0
-            ? data.movedAway
-                .map((item) => `${item.title} mudou para ${formatShortDate(item.toDay)}.`)
-                .join(" ")
-            : describeFreeDay(data.active, day)}
-          {next && (
-            <>
-              {" "}
-              O próximo é{" "}
-              <strong className={styles.emptyStrong}>
-                {next.objective.title}
-              </strong>
-              , {next.when}.
-            </>
-          )}
-          <Link className={styles.emptyLink} href="/objectives">
-            Ver objetivos
-          </Link>
-        </EmptyCard>
-        <aside className={styles.aside}>
-          {day === today && data.pending.length > 0 && (
-            <PendingPanel
-              items={data.pending}
-              today={today}
-              blocked={data.blocked}
-              pickerRange={data.pickerRange}
-            />
-          )}
-          {goals}
-        </aside>
+        <PendingSwap fallback={<DayBodySkeleton />}>
+          <EmptyCard
+            icon={<CalendarIcon />}
+            title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
+          >
+            {data.movedAway.length > 0
+              ? data.movedAway
+                  .map((item) => `${item.title} mudou para ${formatShortDate(item.toDay)}.`)
+                  .join(" ")
+              : describeFreeDay(data.active, day)}
+            {next && (
+              <>
+                {" "}
+                O próximo é{" "}
+                <strong className={styles.emptyStrong}>
+                  {next.objective.title}
+                </strong>
+                , {next.when}.
+              </>
+            )}
+            <Link className={styles.emptyLink} href="/objectives">
+              Ver objetivos
+            </Link>
+          </EmptyCard>
+          <aside className={styles.aside}>
+            {day === today && data.pending.length > 0 && (
+              <PendingPanel
+                items={data.pending}
+                today={today}
+                blocked={data.blocked}
+                pickerRange={data.pickerRange}
+              />
+            )}
+            {goals}
+          </aside>
+        </PendingSwap>
       </>
     );
   }
@@ -193,16 +191,18 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   return (
     <>
       {header}
-      <TodayView
-        key={day}
-        day={day}
-        today={today}
-        objectives={data.scheduled}
-        pending={day === today ? data.pending : []}
-        blocked={data.blocked}
-        pickerRange={data.pickerRange}
-        goals={goals}
-      />
+      <PendingSwap fallback={<DayBodySkeleton />}>
+        <TodayView
+          key={day}
+          day={day}
+          today={today}
+          objectives={data.scheduled}
+          pending={day === today ? data.pending : []}
+          blocked={data.blocked}
+          pickerRange={data.pickerRange}
+          goals={goals}
+        />
+      </PendingSwap>
     </>
   );
 }
@@ -220,13 +220,13 @@ function DayStrip({ days, selected, today }: { days: StripDay[]; selected: strin
               ? `${scheduled} programados`
               : `${done} de ${scheduled} feitos`;
         return (
-          <Link
+          <StripDayLink
             key={day}
+            day={day}
             href={day === today ? "/dashboard" : `/dashboard?day=${day}`}
-            scroll={false}
+            selected={day === selected}
             className={styles.stripDay}
-            aria-current={day === selected ? "date" : undefined}
-            aria-label={`${formatLongDate(day)}, ${status}`}
+            label={`${formatLongDate(day)}, ${status}`}
           >
             <span className={styles.stripWeekday} aria-hidden="true">
               {WEEKDAYS[getWeekday(day)].short}
@@ -235,10 +235,51 @@ function DayStrip({ days, selected, today }: { days: StripDay[]; selected: strin
               {Number(day.slice(8))}
             </span>
             <span className={styles.stripDot} data-state={state} aria-hidden="true" />
-          </Link>
+          </StripDayLink>
         );
       })}
     </StripScroller>
+  );
+}
+
+const STRIP_SKELETON_DAYS = 9;
+
+function DashboardSkeleton() {
+  return (
+    <>
+      <div className={styles.headerArea}>
+        <div className={styles.skeletonHeading}>
+          <Skeleton width="40%" height="var(--space-8)" />
+          <Skeleton width="60%" />
+        </div>
+        <div className={styles.skeletonStrip} aria-hidden="true">
+          {Array.from({ length: STRIP_SKELETON_DAYS }, (_, index) => (
+            <span key={index} className={styles.stripDay}>
+              <Skeleton width="var(--space-6)" height="var(--space-2)" />
+              <Skeleton width="var(--touch-target)" height="var(--touch-target)" radius="var(--radius-full)" />
+            </span>
+          ))}
+        </div>
+      </div>
+      <DayBodySkeleton />
+    </>
+  );
+}
+
+function DayBodySkeleton() {
+  return (
+    <>
+      <div className={styles.aside}>
+        <div className={styles.summaryArea}>
+          <SkeletonCard height="calc(var(--space-12) + var(--space-2) + var(--space-8))" />
+        </div>
+      </div>
+      <div className={styles.listArea}>
+        <LoadingStatus />
+        <SkeletonSectionTitle />
+        <SkeletonList rows={3} />
+      </div>
+    </>
   );
 }
 
