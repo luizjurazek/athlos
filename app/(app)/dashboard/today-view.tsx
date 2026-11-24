@@ -3,11 +3,15 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useState, type ReactNode } from "react";
 import { CHECK_BACKFILL_DAYS } from "@/app/utils/checks";
-import { formatWeekdays } from "@/app/utils/weekdays";
+import { formatShortDate, getWeekday } from "@/app/utils/dates";
+import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { setCheck, type CheckFailure } from "./actions";
-import type { DayObjective } from "./day-objectives";
+import type { BlockedDays, DayObjective, PendingItem } from "./day-objectives";
+import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
 import styles from "./dashboard.module.css";
+
+type SheetState = RescheduleSheetData | null;
 
 type Failure = {
   id: string;
@@ -18,13 +22,32 @@ type Failure = {
 
 export function TodayView({
   day,
+  today,
   objectives,
+  pending,
+  blocked,
+  pickerRange,
   goals,
 }: {
   day: string;
+  today: string;
   objectives: DayObjective[];
+  pending: PendingItem[];
+  blocked: Record<string, BlockedDays>;
+  pickerRange: { from: string; to: string };
   goals?: ReactNode;
 }) {
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const future = day > today;
+
+  function openActions(item: DayObjective, from: string) {
+    if (item.reschedule) {
+      setSheet({ mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked });
+    } else {
+      setSheet({ mode: "move", objective: item, fromDay: from, today, blocked: blocked[item.id], pickerRange });
+    }
+  }
+
   const router = useRouter();
   const [items, setOptimisticCheck] = useOptimistic(
     objectives,
@@ -57,7 +80,14 @@ export function TodayView({
     <>
       <aside className={styles.aside}>
         <div className={styles.summaryArea}>
-          <DaySummary done={done} total={items.length} />
+          {future ? (
+            <p className={styles.futureNote}>
+              Ainda não dá para marcar este dia. Dá para adiantar a mudança de dia dos objetivos que
+              podem mudar.
+            </p>
+          ) : (
+            <DaySummary done={done} total={items.length} />
+          )}
           {failure && (
             <CheckErrorToast
               failure={failure}
@@ -70,22 +100,28 @@ export function TodayView({
             />
           )}
         </div>
+        {pending.length > 0 && (
+          <PendingSection items={pending} onMove={(item) => openActions(item.objective, item.day)} />
+        )}
         {goals}
       </aside>
 
       <section className={styles.listArea} aria-labelledby="today-list-title">
         <h2 id="today-list-title" className={styles.sectionTitle}>
-          Para hoje
+          {day === today ? "Para hoje" : future ? "Programados" : "Neste dia"}
         </h2>
         <ul className={styles.list}>
           {items.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className={styles.itemRow}>
               <button
                 type="button"
                 role="checkbox"
                 aria-checked={item.checked}
+                aria-disabled={future || undefined}
                 className={styles.checkRow}
-                onClick={() => save(item, !item.checked)}
+                onClick={() => {
+                  if (!future) save(item, !item.checked);
+                }}
               >
                 <span className={styles.checkCircle} aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -95,16 +131,71 @@ export function TodayView({
                 <span className={styles.rowText}>
                   <span className={styles.rowTitle}>{item.title}</span>
                   <span className={styles.rowMeta}>
-                    {formatWeekdays(item.weekdays)}
+                    {item.reschedule ? (
+                      <span className={styles.movedBadge}>
+                        → realocado de {WEEKDAYS[getWeekday(item.reschedule.fromDay)].short.toLowerCase()}
+                      </span>
+                    ) : (
+                      formatWeekdays(item.weekdays)
+                    )}
                   </span>
                 </span>
-                <ObjectiveBadge color={item.color} icon={item.icon} />
+                {!item.reschedulable && <ObjectiveBadge color={item.color} icon={item.icon} />}
               </button>
+              {item.reschedulable && (
+                <button
+                  type="button"
+                  className={styles.moreButton}
+                  aria-label={item.reschedule ? `${item.title}: desfazer mudança de dia` : `${item.title}: mudar de dia`}
+                  onClick={() => openActions(item, day)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="6" cy="12" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="18" cy="12" r="1.5" />
+                  </svg>
+                </button>
+              )}
             </li>
           ))}
         </ul>
       </section>
+
+      {sheet && <RescheduleSheet {...sheet} onClose={() => setSheet(null)} />}
     </>
+  );
+}
+
+export function PendingSection({
+  items,
+  onMove,
+}: {
+  items: PendingItem[];
+  onMove: (item: PendingItem) => void;
+}) {
+  return (
+    <section className={styles.pending} aria-labelledby="pending-title">
+      <div className={styles.goalsHeader}>
+        <h2 id="pending-title" className={styles.sectionTitle}>
+          Pendentes
+        </h2>
+        <span className={styles.pendingHint}>últimos {CHECK_BACKFILL_DAYS} dias</span>
+      </div>
+      <ul className={styles.list}>
+        {items.map((item) => (
+          <li key={`${item.objective.id}:${item.day}`} className={styles.pendingRow}>
+            <ObjectiveBadge color={item.objective.color} icon={item.objective.icon} />
+            <span className={styles.rowText}>
+              <span className={styles.rowTitle}>{item.objective.title}</span>
+              <span className={styles.pendingMeta}>Faltou {formatShortDate(item.day)}</span>
+            </span>
+            <button type="button" className={styles.pendingButton} onClick={() => onMove(item)}>
+              Mudar de dia
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -210,5 +301,37 @@ function CheckErrorToast({
         </svg>
       </button>
     </div>
+  );
+}
+
+export function PendingPanel({
+  items,
+  today,
+  blocked,
+  pickerRange,
+}: {
+  items: PendingItem[];
+  today: string;
+  blocked: Record<string, BlockedDays>;
+  pickerRange: { from: string; to: string };
+}) {
+  const [sheet, setSheet] = useState<SheetState>(null);
+  return (
+    <>
+      <PendingSection
+        items={items}
+        onMove={(item) =>
+          setSheet({
+            mode: "move",
+            objective: item.objective,
+            fromDay: item.day,
+            today,
+            blocked: blocked[item.objective.id],
+            pickerRange,
+          })
+        }
+      />
+      {sheet && <RescheduleSheet {...sheet} onClose={() => setSheet(null)} />}
+    </>
   );
 }

@@ -15,12 +15,24 @@
 }
 
 .strip {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  position: relative;
+  display: flex;
   gap: var(--space-1);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
 }
 
 .stripDay {
+  flex: 0 0 auto;
+  min-width: var(--touch-target);
+  scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -77,6 +89,10 @@
 
 .stripDot[data-state="open"] {
   background: var(--color-border-strong);
+}
+
+.stripDot[data-state="future"] {
+  border: 1px solid var(--color-border-strong);
 }
 
 .stripDay:focus-visible {
@@ -387,8 +403,15 @@
   order: 1;
 }
 
-.goals {
+.pending {
   order: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.goals {
+  order: 3;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -514,6 +537,353 @@
 .emptyLink:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+}
+
+.itemRow .checkRow {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkRow[aria-disabled="true"] {
+  cursor: default;
+}
+
+.checkRow[aria-disabled="true"] .checkCircle {
+  border-style: dashed;
+}
+
+.moreButton,
+.sheetClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  margin-right: var(--space-2);
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.moreButton svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: currentColor;
+}
+
+.movedBadge {
+  display: inline-flex;
+  margin-top: 2px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.futureNote {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-footnote);
+}
+
+.pendingHint {
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+}
+
+.pendingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-target) + var(--space-4));
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+}
+
+.pendingMeta {
+  font-size: var(--text-footnote);
+  color: var(--color-warning);
+}
+
+.pendingButton,
+.secondaryButton,
+.primaryButton {
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-strong);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+.primaryButton {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.secondaryButton,
+.primaryButton {
+  min-height: var(--control-height);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body);
+}
+
+.pendingButton:active:not(:disabled),
+.secondaryButton:active:not(:disabled),
+.primaryButton:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sheet {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 92dvh;
+  margin: 0;
+  padding: var(--space-5) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: none;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+}
+
+.sheet[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: sheet-in var(--duration-base) var(--ease-standard);
+}
+
+.sheet::backdrop {
+  background: color-mix(in srgb, var(--palette-black) 45%, transparent);
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-8));
+  }
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sheetHeading {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheetTitle {
+  font-size: var(--text-title-3);
+  font-weight: var(--font-weight-heading);
+}
+
+.sheetSubtitle {
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sheetClose {
+  margin-right: 0;
+  background: var(--color-surface);
+}
+
+.sheetClose svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pickerWeekLabel {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+}
+
+.pickerDays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.pickerDay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: calc(var(--touch-target) + var(--space-3));
+  padding: var(--space-1) 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.pickerWeekday {
+  font-size: var(--text-caption-2);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.pickerDate {
+  font-size: var(--text-headline);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.pickerDay[data-blocked="true"] {
+  border-color: var(--color-border);
+  background: transparent;
+  cursor: help;
+}
+
+.pickerDay[data-blocked="true"] .pickerDate {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.pickerDay[data-origin="true"] {
+  border-color: var(--color-warning);
+  background: var(--color-warning-bg);
+  cursor: default;
+}
+
+.pickerDay[data-origin="true"] .pickerDate,
+.pickerDay[data-origin="true"] .pickerWeekday {
+  color: var(--color-warning);
+}
+
+.pickerDay[aria-pressed="true"] {
+  background: var(--color-primary);
+}
+
+.pickerDay[aria-pressed="true"] .pickerDate,
+.pickerDay[aria-pressed="true"] .pickerWeekday {
+  color: var(--color-on-primary);
+}
+
+.pickerToday {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+.sheetInfo {
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+}
+
+.sheetError {
+  color: var(--color-danger);
+  font-size: var(--text-footnote);
+}
+
+.sheetActions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-2);
+}
+
+.moreButton:focus-visible,
+.sheetClose:focus-visible,
+.pendingButton:focus-visible,
+.secondaryButton:focus-visible,
+.primaryButton:focus-visible,
+.pickerDay:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .strip {
+    padding-bottom: var(--space-2);
+    scrollbar-width: thin;
+  }
+
+  .strip::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+
+  .moreButton:hover {
+    background: var(--color-fill);
+  }
+
+  .pickerDay:not([data-blocked="true"]):not([data-origin="true"]):not([aria-pressed="true"]):hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    inset: 0;
+    width: min(520px, calc(100% - var(--space-8)));
+    height: fit-content;
+    margin: auto;
+    padding: var(--space-6);
+    border-radius: var(--radius-xl);
+  }
+
+  .sheetActions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .strip {
+    margin: 0;
+    padding: 0;
+  }
 }
 
 @media (hover: hover) {

@@ -15,14 +15,16 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
 import type { Objective } from "../objectives/options";
 import {
-  getDayStrip,
-  getObjectivesForDay,
+  getDayData,
   getUserTimezone,
   isScheduledOn,
+  STRIP_DAYS_AHEAD,
+  type DayData,
   type StripDay,
 } from "./day-objectives";
+import { StripScroller } from "./strip-scroller";
 import { GoalsSummary } from "./goals-summary";
-import { TodayView } from "./today-view";
+import { PendingPanel, TodayView } from "./today-view";
 import styles from "./dashboard.module.css";
 
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
@@ -63,7 +65,12 @@ function Header({
 function getDayTitle(day: string, today: string) {
   if (day === today) return "Hoje";
   if (day === addDays(today, -1)) return "Ontem";
+  if (day === addDays(today, 1)) return "Amanhã";
   return WEEKDAYS[getWeekday(day)].long;
+}
+
+function isStripDay(day: string, today: string) {
+  return isWithinBackfill(day, today) || (day > today && day <= addDays(today, STRIP_DAYS_AHEAD));
 }
 
 async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "searchParams">) {
@@ -75,17 +82,15 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   ]);
   const today = getUserToday(timezone);
   const day =
-    typeof requested === "string" && isDay(requested) && isWithinBackfill(requested, today)
+    typeof requested === "string" && isDay(requested) && isStripDay(requested, today)
       ? requested
       : today;
   const title = getDayTitle(day, today);
   const dateLabel = formatLongDate(day);
 
-  let data;
-  let strip: StripDay[];
+  let data: DayData;
   try {
-    data = await getObjectivesForDay(supabase, day, timezone);
-    strip = await getDayStrip(supabase, today, timezone, data.active);
+    data = await getDayData(supabase, { day, today, timezone });
   } catch (error) {
     console.error("Failed to load the day's objectives", error);
     return (
@@ -133,7 +138,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     <Header
       title={title}
       subtitle={dateLabel}
-      strip={<DayStrip days={strip} selected={day} today={today} />}
+      strip={<DayStrip days={data.strip} selected={day} today={today} />}
     />
   );
   const goals = (
@@ -151,7 +156,11 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
           icon={<CalendarIcon />}
           title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
         >
-          {describeFreeDay(data.active, day)}
+          {data.movedAway.length > 0
+            ? data.movedAway
+                .map((item) => `${item.title} mudou para ${formatShortDate(item.toDay)}.`)
+                .join(" ")
+            : describeFreeDay(data.active, day)}
           {next && (
             <>
               {" "}
@@ -166,7 +175,17 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
             Ver objetivos
           </Link>
         </EmptyCard>
-        <aside className={styles.aside}>{goals}</aside>
+        <aside className={styles.aside}>
+          {day === today && data.pending.length > 0 && (
+            <PendingPanel
+              items={data.pending}
+              today={today}
+              blocked={data.blocked}
+              pickerRange={data.pickerRange}
+            />
+          )}
+          {goals}
+        </aside>
       </>
     );
   }
@@ -174,18 +193,32 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   return (
     <>
       {header}
-      <TodayView key={day} day={day} objectives={data.scheduled} goals={goals} />
+      <TodayView
+        key={day}
+        day={day}
+        today={today}
+        objectives={data.scheduled}
+        pending={day === today ? data.pending : []}
+        blocked={data.blocked}
+        pickerRange={data.pickerRange}
+        goals={goals}
+      />
     </>
   );
 }
 
 function DayStrip({ days, selected, today }: { days: StripDay[]; selected: string; today: string }) {
   return (
-    <nav className={styles.strip} aria-label="Dias que ainda dá para marcar">
+    <StripScroller className={styles.strip} label="Escolher dia">
       {days.map(({ day, scheduled, done }) => {
-        const state = scheduled === 0 ? "none" : done >= scheduled ? "done" : "open";
+        const state =
+          scheduled === 0 ? "none" : day > today ? "future" : done >= scheduled ? "done" : "open";
         const status =
-          state === "none" ? "nada programado" : `${done} de ${scheduled} feitos`;
+          scheduled === 0
+            ? "nada programado"
+            : day > today
+              ? `${scheduled} programados`
+              : `${done} de ${scheduled} feitos`;
         return (
           <Link
             key={day}
@@ -205,7 +238,7 @@ function DayStrip({ days, selected, today }: { days: StripDay[]; selected: strin
           </Link>
         );
       })}
-    </nav>
+    </StripScroller>
   );
 }
 
