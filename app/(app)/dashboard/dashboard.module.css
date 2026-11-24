@@ -8,6 +8,82 @@
     var(--space-8) calc(var(--space-4) + env(safe-area-inset-left));
 }
 
+.headerArea {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.stripDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stripWeekday {
+  font-size: var(--text-caption-2);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.stripDate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  max-width: 100%;
+  border-radius: var(--radius-full);
+  font-size: var(--text-headline);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.stripDay[aria-current="date"] .stripDate {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.stripDay:active .stripDate {
+  transform: scale(0.94);
+}
+
+.stripDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+}
+
+.stripDot[data-state="done"] {
+  background: var(--color-success);
+}
+
+.stripDot[data-state="open"] {
+  background: var(--color-border-strong);
+}
+
+.stripDay:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -441,7 +517,8 @@
 }
 
 @media (hover: hover) {
-  .checkRow:hover {
+  .checkRow:hover,
+  .stripDay:hover:not([aria-current="date"]) .stripDate {
     background: var(--color-surface-muted);
   }
 
@@ -499,12 +576,12 @@
     row-gap: var(--space-6);
   }
 
-  .header {
+  .headerArea {
     grid-area: header;
   }
 
   /* The empty state has no right column, so its header action goes to the far right. */
-  .header:has(.headerAction) {
+  .headerArea:has(.headerAction) {
     grid-column: 1 / -1;
   }
 

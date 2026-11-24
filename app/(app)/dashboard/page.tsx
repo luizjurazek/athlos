@@ -1,70 +1,98 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { cookies } from "next/headers";
+import { isWithinBackfill } from "@/app/utils/checks";
 import {
   addDays,
   formatLongDate,
   formatShortDate,
   getUserToday,
   getWeekday,
+  isDay,
 } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
 import type { Objective } from "../objectives/options";
 import {
+  getDayStrip,
   getObjectivesForDay,
   getUserTimezone,
   isScheduledOn,
+  type StripDay,
 } from "./day-objectives";
 import { GoalsSummary } from "./goals-summary";
 import { TodayView } from "./today-view";
 import styles from "./dashboard.module.css";
 
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
     <main className={styles.content}>
-      <Suspense fallback={<Header subtitle="Carregando..." />}>
-        <TodayContent />
+      <Suspense fallback={<Header title="Hoje" subtitle="Carregando..." />}>
+        <TodayContent searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
 function Header({
+  title,
   subtitle,
   action,
+  strip,
 }: {
+  title: string;
   subtitle: string;
   action?: ReactNode;
+  strip?: ReactNode;
 }) {
   return (
-    <header className={styles.header}>
-      <div>
-        <h1 className={styles.title}>Hoje</h1>
-        <p className={styles.subtitle}>{subtitle}</p>
-      </div>
-      {action}
-    </header>
+    <div className={styles.headerArea}>
+      <header className={styles.header}>
+        <div>
+          <h1 className={styles.title}>{title}</h1>
+          <p className={styles.subtitle}>{subtitle}</p>
+        </div>
+        {action}
+      </header>
+      {strip}
+    </div>
   );
 }
 
-async function TodayContent() {
+function getDayTitle(day: string, today: string) {
+  if (day === today) return "Hoje";
+  if (day === addDays(today, -1)) return "Ontem";
+  return WEEKDAYS[getWeekday(day)].long;
+}
+
+async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "searchParams">) {
   const user = await requireUser();
   const supabase = createClient(await cookies());
-  const day = getUserToday(await getUserTimezone(supabase, user.id));
+  const [{ day: requested }, timezone] = await Promise.all([
+    searchParams,
+    getUserTimezone(supabase, user.id),
+  ]);
+  const today = getUserToday(timezone);
+  const day =
+    typeof requested === "string" && isDay(requested) && isWithinBackfill(requested, today)
+      ? requested
+      : today;
+  const title = getDayTitle(day, today);
   const dateLabel = formatLongDate(day);
 
   let data;
+  let strip: StripDay[];
   try {
-    data = await getObjectivesForDay(supabase, day);
+    data = await getObjectivesForDay(supabase, day, timezone);
+    strip = await getDayStrip(supabase, today, timezone, data.active);
   } catch (error) {
-    console.error("Failed to load today's objectives", error);
+    console.error("Failed to load the day's objectives", error);
     return (
       <>
-        <Header subtitle={dateLabel} />
+        <Header title={title} subtitle={dateLabel} />
         <p className={styles.error}>
-          Não foi possível carregar o dia de hoje. Atualize a página.
+          Não foi possível carregar este dia. Atualize a página.
         </p>
       </>
     );
@@ -74,6 +102,7 @@ async function TodayContent() {
     return (
       <>
         <Header
+          title={title}
           subtitle={dateLabel}
           action={
             <Link
@@ -100,12 +129,28 @@ async function TodayContent() {
     );
   }
 
+  const header = (
+    <Header
+      title={title}
+      subtitle={dateLabel}
+      strip={<DayStrip days={strip} selected={day} today={today} />}
+    />
+  );
+  const goals = (
+    <Suspense fallback={null}>
+      <GoalsSummary today={today} />
+    </Suspense>
+  );
+
   if (data.scheduled.length === 0) {
-    const next = findNextObjective(data.active, day);
+    const next = day === today ? findNextObjective(data.active, day) : null;
     return (
       <>
-        <Header subtitle={dateLabel} />
-        <EmptyCard icon={<CalendarIcon />} title="Nada programado para hoje">
+        {header}
+        <EmptyCard
+          icon={<CalendarIcon />}
+          title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
+        >
           {describeFreeDay(data.active, day)}
           {next && (
             <>
@@ -121,28 +166,46 @@ async function TodayContent() {
             Ver objetivos
           </Link>
         </EmptyCard>
-        <aside className={styles.aside}>
-          <Suspense fallback={null}>
-            <GoalsSummary today={day} />
-          </Suspense>
-        </aside>
+        <aside className={styles.aside}>{goals}</aside>
       </>
     );
   }
 
   return (
     <>
-      <Header subtitle={dateLabel} />
-      <TodayView
-        day={day}
-        objectives={data.scheduled}
-        goals={
-          <Suspense fallback={null}>
-            <GoalsSummary today={day} />
-          </Suspense>
-        }
-      />
+      {header}
+      <TodayView key={day} day={day} objectives={data.scheduled} goals={goals} />
     </>
+  );
+}
+
+function DayStrip({ days, selected, today }: { days: StripDay[]; selected: string; today: string }) {
+  return (
+    <nav className={styles.strip} aria-label="Dias que ainda dá para marcar">
+      {days.map(({ day, scheduled, done }) => {
+        const state = scheduled === 0 ? "none" : done >= scheduled ? "done" : "open";
+        const status =
+          state === "none" ? "nada programado" : `${done} de ${scheduled} feitos`;
+        return (
+          <Link
+            key={day}
+            href={day === today ? "/dashboard" : `/dashboard?day=${day}`}
+            scroll={false}
+            className={styles.stripDay}
+            aria-current={day === selected ? "date" : undefined}
+            aria-label={`${formatLongDate(day)}, ${status}`}
+          >
+            <span className={styles.stripWeekday} aria-hidden="true">
+              {WEEKDAYS[getWeekday(day)].short}
+            </span>
+            <span className={styles.stripDate} aria-hidden="true">
+              {Number(day.slice(8))}
+            </span>
+            <span className={styles.stripDot} data-state={state} aria-hidden="true" />
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 

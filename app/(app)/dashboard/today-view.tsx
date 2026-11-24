@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition, useOptimistic, useState, type ReactNode } from "react";
+import { CHECK_BACKFILL_DAYS } from "@/app/utils/checks";
 import { formatWeekdays } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { setCheck, type CheckFailure } from "./actions";
@@ -167,15 +168,15 @@ function CheckErrorToast({
           action: "Tentar de novo",
           onAction: onRetry,
         }
-      : failure.reason === "stale-day"
+      : failure.reason === "out-of-window"
         ? {
-            title: "O dia mudou",
-            detail: "Atualize para ver os objetivos de hoje.",
+            title: `Só dá para marcar até ${CHECK_BACKFILL_DAYS} dias atrás.`,
+            detail: "Atualize para ver os dias que ainda dá para marcar.",
             action: "Atualizar",
             onAction: onRefresh,
           }
         : {
-            title: `${failure.title} não está mais programado para hoje`,
+            title: `${failure.title} não está mais programado para este dia`,
             detail: "Ele foi arquivado ou mudou de dia.",
             action: "Atualizar",
             onAction: onRefresh,
