@@ -56,7 +56,7 @@ export async function saveGoal(
     if (lockedError) return { error: lockedError };
   }
 
-  const { error } = await supabase.rpc("save_goal", {
+  const { data: savedId, error } = await supabase.rpc("save_goal", {
     goal: {
       ...(goalId ? { id: goalId } : {}),
       title: draft.title.trim(),
@@ -81,7 +81,7 @@ export async function saveGoal(
     return { error: SAVE_ERROR };
   }
 
-  redirect("/goals");
+  redirect(`/goals/${savedId}`);
 }
 
 // Stages that already reached their target are frozen (doubt 2.1): same position, title, target

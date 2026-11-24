@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
-import { formatNumericDate, getUserToday } from "@/app/utils/dates";
+import { getUserToday } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../dashboard/day-objectives";
 import ui from "../objectives/objectives.module.css";
-import { getCurrentStage, getGoals, type Goal } from "./data";
-import { formatCount } from "./format";
-import { GoalTabs, type GoalCardData } from "./goal-tabs";
+import { getGoals, syncGoalStatuses, type Goal } from "./data";
+import { toGoalCard } from "./goal-card";
+import { GoalTabs } from "./goal-tabs";
 import styles from "./goals.module.css";
 
 export default function GoalsPage() {
@@ -52,7 +52,8 @@ async function GoalsList() {
     return <p className={ui.error}>Não foi possível carregar suas metas.</p>;
   }
 
-  const cards = goals.map((goal) => toCard(goal, today));
+  const synced = await syncGoalStatuses(supabase, goals, today);
+  const cards = synced.map((goal) => toGoalCard(goal, today));
   return (
     <>
       <GoalTabs
@@ -63,23 +64,4 @@ async function GoalsList() {
       <NewGoalLink className={ui.bottomAction} />
     </>
   );
-}
-
-function toCard(goal: Goal, today: string): GoalCardData {
-  const stage = getCurrentStage(goal, today);
-  const total = goal.stages.length;
-  const stageLabel = !stage
-    ? ""
-    : total === 1
-      ? `Etapa única · até ${formatNumericDate(stage.dueOn)}`
-      : `Etapa ${stage.position} de ${total} · ${stage.title} até ${formatNumericDate(stage.dueOn)}`;
-  return {
-    id: goal.id,
-    title: goal.title,
-    status: goal.status,
-    stageLabel,
-    done: stage?.checksCount ?? 0,
-    target: stage ? formatCount(stage.targetCount, goal.unitLabel) : "",
-    objectives: goal.objectives.map((objective) => objective.title).join(", "),
-  };
 }

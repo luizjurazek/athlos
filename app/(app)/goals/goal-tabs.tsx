@@ -1,20 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import ui from "../objectives/objectives.module.css";
-import type { GoalStatus } from "./data";
+import { GoalCard, type GoalCardData } from "./goal-card";
 import styles from "./goals.module.css";
-
-export type GoalCardData = {
-  id: string;
-  title: string;
-  status: GoalStatus;
-  stageLabel: string;
-  done: number;
-  target: string;
-  objectives: string;
-};
 
 const TABS = [
   { id: "active", label: "Ativas", empty: "Nenhuma meta ativa. Crie uma para dar direção aos seus objetivos." },
@@ -23,11 +12,6 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
-
-const STATUS_LABELS: Partial<Record<GoalStatus, string>> = {
-  expired: "Expirada",
-  abandoned: "Abandonada",
-};
 
 export function GoalTabs(lists: Record<TabId, GoalCardData[]>) {
   const [tab, setTab] = useState<TabId>("active");
@@ -60,21 +44,7 @@ export function GoalTabs(lists: Record<TabId, GoalCardData[]>) {
           <ul className={styles.cards}>
             {cards.map((card) => (
               <li key={card.id}>
-                <Link className={styles.card} href={`/goals/${card.id}/edit`}>
-                  <span className={styles.cardHeader}>
-                    <span className={styles.cardTitle}>{card.title}</span>
-                    {STATUS_LABELS[card.status] && (
-                      <span className={styles.statusPill}>{STATUS_LABELS[card.status]}</span>
-                    )}
-                  </span>
-                  <span className={styles.cardMeta}>{card.stageLabel}</span>
-                  <span className={styles.cardFooter}>
-                    <span>
-                      <strong className={styles.cardCount}>{card.done}</strong> de {card.target}
-                    </span>
-                    <span className={styles.cardObjectives}>{card.objectives}</span>
-                  </span>
-                </Link>
+                <GoalCard card={card} />
               </li>
             ))}
           </ul>

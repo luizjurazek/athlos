@@ -1,5 +1,6 @@
 import type { createClient } from "@/app/utils/supabase/server";
 import type { Enums } from "@/app/utils/supabase/database.types";
+import { getGoalStatus } from "@/app/utils/goals";
 
 type Client = ReturnType<typeof createClient>;
 
@@ -23,6 +24,7 @@ export type GoalStage = {
   windowStart: string;
   checksCount: number;
   completed: boolean;
+  completedAt: string | null;
 };
 
 export type Goal = {
@@ -39,7 +41,7 @@ export type Goal = {
 
 const GOAL_SELECT = `
   id, title, description, unit_label, starts_on, due_on, status,
-  goal_stages ( id, position, title, target_count, due_on ),
+  goal_stages ( id, position, title, target_count, due_on, completed_at ),
   goal_objectives ( objectives ( id, title, color, icon, weekdays, archived_at ) )
 `;
 
@@ -81,6 +83,7 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
           windowStart: stageProgress?.window_start ?? goal.starts_on,
           checksCount,
           completed: checksCount >= stage.target_count,
+          completedAt: stage.completed_at,
         };
       }),
     objectives: goal.goal_objectives
@@ -101,11 +104,49 @@ export async function getGoal(supabase: Client, goalId: string) {
   return goal ?? null;
 }
 
-/** The stage the user is working on: the first one not yet reached and still open. */
-export function getCurrentStage(goal: Goal, today: string) {
-  return (
-    goal.stages.find((stage) => !stage.completed && stage.dueOn >= today) ?? goal.stages.at(-1)
-  );
+/**
+ * Status is derived on read (no cron, task 07). When the derived value differs from what is stored,
+ * the goal status and the stages' completed_at are written back so other readers see it too.
+ */
+export async function syncGoalStatuses(supabase: Client, goals: Goal[], today: string) {
+  const writes: PromiseLike<{ error: unknown }>[] = [];
+  const synced = goals.map((goal) => {
+    const status = getGoalStatus(goal.stages, today, goal.status);
+    if (status !== goal.status) {
+      writes.push(supabase.from("goals").update({ status }).eq("id", goal.id));
+    }
+    for (const stage of goal.stages) {
+      if (stage.completed === Boolean(stage.completedAt)) continue;
+      const completedAt = stage.completed ? new Date().toISOString() : null;
+      writes.push(
+        supabase.from("goal_stages").update({ completed_at: completedAt }).eq("id", stage.id),
+      );
+    }
+    return { ...goal, status };
+  });
+
+  const results = await Promise.all(writes);
+  for (const { error } of results) {
+    if (error) console.error("Failed to sync goal status", error);
+  }
+  return synced;
+}
+
+export async function getObjectiveChecks(
+  supabase: Client,
+  objectiveIds: string[],
+  from: string,
+  to: string,
+) {
+  if (objectiveIds.length === 0 || from > to) return [];
+  const { data, error } = await supabase
+    .from("objective_checks")
+    .select("objective_id, day")
+    .in("objective_id", objectiveIds)
+    .gte("day", from)
+    .lte("day", to);
+  if (error) throw error;
+  return data.map((check) => ({ objectiveId: check.objective_id, day: check.day }));
 }
 
 export async function getSelectableObjectives(supabase: Client, linkedIds: string[] = []) {

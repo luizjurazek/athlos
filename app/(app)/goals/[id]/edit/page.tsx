@@ -17,8 +17,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function EditGoalPage({ params }: PageProps<"/goals/[id]/edit">) {
   return (
     <main className={ui.content}>
-      <BackLink href="/goals" label="Metas" />
-      <h1 className={ui.title}>Editar meta</h1>
       <Suspense fallback={<p className={ui.muted}>Carregando...</p>}>
         <EditGoal params={params} />
       </Suspense>
@@ -44,6 +42,8 @@ async function EditGoal({ params }: Pick<PageProps<"/goals/[id]/edit">, "params"
 
   return (
     <>
+      <BackLink href={`/goals/${id}`} label={goal.title} />
+      <h1 className={ui.title}>Editar meta</h1>
       <GoalForm
         action={saveGoal.bind(null, id)}
         goal={goal}
