@@ -13,7 +13,8 @@ depois ampliada para desktop. Uma tela só está pronta se funcionar muito bem n
 ## Linguagem visual (inspirada nas Human Interface Guidelines)
 
 - **Clareza e calma:** muito espaço em branco, poucos elementos por tela, uma ação principal clara.
-- **Hierarquia pela tipografia**, não por cor ou bordas: tamanho e peso (`--text-*`, 400/500/600/700).
+- **Hierarquia pela tipografia**, não por cor ou bordas: tamanho e peso (`--text-*`, `--font-weight-*`). Nunca peso numérico solto: a Geist
+  fica pesada, por isso os tokens são um degrau mais leves que os da Apple (título 600, botão/link 500).
   Títulos grandes no topo da tela (`--text-large-title` no mobile).
 - **Superfícies agrupadas** (estilo "inset grouped" do iOS): conteúdo em cards `--color-surface` com
   `--radius-lg`, separadores finos (`1px --color-border`) entre linhas, em vez de bordas pesadas.

@@ -8,7 +8,7 @@
   padding: 0 var(--space-2) 0 0;
   color: var(--color-primary-text);
   font-size: var(--text-body);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-decoration: none;
   transition: opacity var(--duration-fast) var(--ease-standard);
 }

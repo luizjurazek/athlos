@@ -129,11 +129,20 @@
   --text-caption: 0.8125rem;
   --text-footnote: 0.875rem;
   --text-body: 1rem;
-  --text-headline: 1.0625rem;
-  --text-title-3: 1.25rem;
-  --text-title-2: 1.375rem;
-  --text-title-1: 1.75rem;
-  --text-large-title: 2.125rem;
+  --text-headline: 1rem;
+  --text-title-3: 1.125rem;
+  --text-title-2: 1.25rem;
+  --text-title-1: 1.5rem;
+  --text-large-title: 1.75rem;
+
+  /*
+   * Weights are one step lighter than Apple's: Geist renders noticeably heavier
+   * than SF Pro at the same value. Geist is variable, so in-between values work.
+   */
+  --font-weight-regular: 400;
+  --font-weight-medium: 450;
+  --font-weight-strong: 500;
+  --font-weight-heading: 600;
 
   /* Touch */
   --touch-target: 44px;

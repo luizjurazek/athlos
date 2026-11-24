@@ -9,7 +9,7 @@
 
 .title {
   font-size: var(--text-large-title);
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -28,7 +28,7 @@
 .sectionTitle {
   padding: 0 var(--space-4);
   font-size: var(--text-footnote);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--color-text-muted);

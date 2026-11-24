@@ -21,7 +21,7 @@
 
 .title {
   font-size: var(--text-large-title);
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -48,7 +48,7 @@
 .sectionTitle {
   padding: 0 var(--space-4);
   font-size: var(--text-footnote);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--color-text-muted);
@@ -88,7 +88,7 @@
 }
 
 .rowTitle {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -217,7 +217,7 @@
   margin-bottom: var(--space-3);
   padding: 0 var(--space-4);
   font-size: var(--text-footnote);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--color-text-muted);
@@ -246,7 +246,7 @@
   background: transparent;
   color: var(--color-text);
   font-size: var(--text-footnote);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
     transform var(--duration-fast) var(--ease-standard),
@@ -275,7 +275,7 @@
   background: var(--color-surface);
   color: var(--color-text-muted);
   font-size: var(--text-footnote);
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
   cursor: pointer;
   user-select: none;
   transition:
@@ -409,7 +409,7 @@
   background: var(--color-primary);
   color: var(--color-on-primary);
   font-size: var(--text-headline);
-  font-weight: 600;
+  font-weight: var(--font-weight-strong);
   text-decoration: none;
   cursor: pointer;
   transition:

@@ -9,7 +9,7 @@
 
 .title {
   font-size: var(--text-large-title);
-  font-weight: 700;
+  font-weight: var(--font-weight-heading);
   letter-spacing: -0.02em;
   line-height: 1.15;
   overflow-wrap: anywhere;
