@@ -17,6 +17,7 @@ import {
   getUserTimezone,
   isScheduledOn,
 } from "./day-objectives";
+import { GoalsSummary } from "./goals-summary";
 import { TodayView } from "./today-view";
 import styles from "./dashboard.module.css";
 
@@ -120,6 +121,11 @@ async function TodayContent() {
             Ver objetivos
           </Link>
         </EmptyCard>
+        <aside className={styles.aside}>
+          <Suspense fallback={null}>
+            <GoalsSummary today={day} />
+          </Suspense>
+        </aside>
       </>
     );
   }
@@ -127,7 +133,15 @@ async function TodayContent() {
   return (
     <>
       <Header subtitle={dateLabel} />
-      <TodayView day={day} objectives={data.scheduled} />
+      <TodayView
+        day={day}
+        objectives={data.scheduled}
+        goals={
+          <Suspense fallback={null}>
+            <GoalsSummary today={day} />
+          </Suspense>
+        }
+      />
     </>
   );
 }

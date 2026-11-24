@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useOptimistic, useState } from "react";
+import { startTransition, useOptimistic, useState, type ReactNode } from "react";
 import { formatWeekdays } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { setCheck, type CheckFailure } from "./actions";
@@ -18,9 +18,11 @@ type Failure = {
 export function TodayView({
   day,
   objectives,
+  goals,
 }: {
   day: string;
   objectives: DayObjective[];
+  goals?: ReactNode;
 }) {
   const router = useRouter();
   const [items, setOptimisticCheck] = useOptimistic(
@@ -53,18 +55,21 @@ export function TodayView({
   return (
     <>
       <aside className={styles.aside}>
-        <DaySummary done={done} total={items.length} />
-        {failure && (
-          <CheckErrorToast
-            failure={failure}
-            onRetry={() => save(failure, failure.checked)}
-            onRefresh={() => {
-              setFailure(null);
-              router.refresh();
-            }}
-            onClose={() => setFailure(null)}
-          />
-        )}
+        <div className={styles.summaryArea}>
+          <DaySummary done={done} total={items.length} />
+          {failure && (
+            <CheckErrorToast
+              failure={failure}
+              onRetry={() => save(failure, failure.checked)}
+              onRefresh={() => {
+                setFailure(null);
+                router.refresh();
+              }}
+              onClose={() => setFailure(null)}
+            />
+          )}
+        </div>
+        {goals}
       </aside>
 
       <section className={styles.listArea} aria-labelledby="today-list-title">

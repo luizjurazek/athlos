@@ -300,10 +300,51 @@
   margin-top: auto;
 }
 
+/* Below 1024px the aside dissolves so the goals can follow the list while the summary stays on top. */
 .aside {
+  display: contents;
+}
+
+.listArea,
+.empty,
+.error {
+  order: 1;
+}
+
+.goals {
+  order: 2;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-3);
+}
+
+.goalsHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-right: var(--space-4);
+}
+
+.goalsLink {
+  color: var(--color-text);
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+
+.goalsLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.goalsList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .toast {
@@ -433,7 +474,7 @@
     display: none;
   }
 
-  .aside {
+  .summaryArea {
     position: relative;
   }
 
@@ -475,5 +516,8 @@
 
   .aside {
     grid-area: aside;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
   }
 }
