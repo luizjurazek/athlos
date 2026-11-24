@@ -1,6 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   EVERY_DAY,
   normalizeWeekdays,
@@ -20,7 +25,10 @@ import styles from "./objectives.module.css";
 
 type ObjectiveFormProps = {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
-  objective?: Pick<Objective, "title" | "color" | "icon" | "weekdays" | "reschedulable">;
+  objective?: Pick<
+    Objective,
+    "title" | "color" | "icon" | "weekdays" | "reschedulable"
+  >;
   submitLabel: string;
 };
 
@@ -37,7 +45,11 @@ function sameDays(a: readonly Weekday[], b: readonly Weekday[]) {
   return a.length === b.length && a.every((day) => b.includes(day));
 }
 
-export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormProps) {
+export function ObjectiveForm({
+  action,
+  objective,
+  submitLabel,
+}: ObjectiveFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [title, setTitle] = useState(objective?.title ?? "");
   const [weekdays, setWeekdays] = useState<Weekday[]>(
@@ -45,14 +57,24 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
   );
   const [color, setColor] = useState(objective?.color ?? "");
   const [icon, setIcon] = useState(objective?.icon ?? "");
-  const [reschedulable, setReschedulable] = useState(objective?.reschedulable ?? false);
+  const [reschedulable, setReschedulable] = useState(
+    objective?.reschedulable ?? false,
+  );
 
   function toggleDay(day: Weekday) {
     setWeekdays((current) =>
       normalizeWeekdays(
-        current.includes(day) ? current.filter((d) => d !== day) : [...current, day],
+        current.includes(day)
+          ? current.filter((d) => d !== day)
+          : [...current, day],
       ),
     );
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    startTransition(() => formAction(formData));
   }
 
   const presets = [
@@ -61,7 +83,7 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
   ];
 
   return (
-    <form action={formAction} className={styles.form}>
+    <form onSubmit={handleSubmit} className={styles.form}>
       <Feedback state={state} />
 
       <div className={styles.formColumns}>
@@ -125,7 +147,8 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
               />
             </label>
             <p className={styles.hint}>
-              Ex.: academia pode ir para o sábado se você faltar. Beber água, não.
+              Ex.: academia pode ir para o sábado se você faltar. Beber água,
+              não.
             </p>
           </div>
         </div>
@@ -134,7 +157,11 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
             <legend className={styles.legend}>Ícone</legend>
             <div className={styles.swatches}>
               {OBJECTIVE_ICONS.map((option) => (
-                <label key={option.value} className={styles.iconOption} title={option.label}>
+                <label
+                  key={option.value}
+                  className={styles.iconOption}
+                  title={option.label}
+                >
                   <input
                     className={styles.visuallyHidden}
                     type="radio"
@@ -144,7 +171,10 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
                     onChange={() => setIcon(option.value)}
                     aria-label={option.label}
                   />
-                  <ObjectiveIcon name={option.value} className={styles.optionIcon} />
+                  <ObjectiveIcon
+                    name={option.value}
+                    className={styles.optionIcon}
+                  />
                 </label>
               ))}
             </div>
@@ -152,7 +182,11 @@ export function ObjectiveForm({ action, objective, submitLabel }: ObjectiveFormP
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Cor</legend>
             <div className={styles.swatches}>
-              <label className={styles.colorOption} data-color="neutral" title="Sem cor">
+              <label
+                className={styles.colorOption}
+                data-color="neutral"
+                title="Sem cor"
+              >
                 <input
                   className={styles.visuallyHidden}
                   type="radio"
