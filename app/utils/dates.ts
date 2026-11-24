@@ -106,3 +106,9 @@ export function formatDayMonth(day: string) {
 export function diffDays(from: string, to: string) {
   return Math.round((parseDay(to).getTime() - parseDay(from).getTime()) / 86_400_000);
 }
+
+export function formatMonthYear(day: string) {
+  const date = parseDay(day);
+  const month = MONTHS[date.getUTCMonth()];
+  return `${month[0].toUpperCase()}${month.slice(1)} ${date.getUTCFullYear()}`;
+}
