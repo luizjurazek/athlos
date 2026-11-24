@@ -134,18 +134,18 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "goal_stage_targets_stage_fkey";
-            columns: ["stage_id", "goal_id", "user_id"];
-            isOneToOne: false;
-            referencedRelation: "goal_stages";
-            referencedColumns: ["id", "goal_id", "user_id"];
-          },
-          {
             foreignKeyName: "goal_stage_targets_link_fkey";
             columns: ["goal_id", "objective_id"];
             isOneToOne: false;
             referencedRelation: "goal_objectives";
             referencedColumns: ["goal_id", "objective_id"];
+          },
+          {
+            foreignKeyName: "goal_stage_targets_stage_fkey";
+            columns: ["stage_id", "goal_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "goal_stages";
+            referencedColumns: ["id", "goal_id", "user_id"];
           },
         ];
       };
@@ -237,6 +237,84 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      objective_additions: {
+        Row: {
+          created_at: string;
+          day: string;
+          id: string;
+          objective_id: string;
+          replaced_objective_id: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          day: string;
+          id?: string;
+          objective_id: string;
+          replaced_objective_id?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          created_at?: string;
+          day?: string;
+          id?: string;
+          objective_id?: string;
+          replaced_objective_id?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "objective_additions_objective_fkey";
+            columns: ["objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "objective_additions_replaced_objective_fkey";
+            columns: ["replaced_objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      objective_alternatives: {
+        Row: {
+          alternative_id: string;
+          created_at: string;
+          objective_id: string;
+          user_id: string;
+        };
+        Insert: {
+          alternative_id: string;
+          created_at?: string;
+          objective_id: string;
+          user_id?: string;
+        };
+        Update: {
+          alternative_id?: string;
+          created_at?: string;
+          objective_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "objective_alternatives_alternative_fkey";
+            columns: ["alternative_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "objective_alternatives_objective_fkey";
+            columns: ["objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
       };
       objective_checks: {
         Row: {
@@ -373,6 +451,24 @@ export type Database = {
       };
     };
     Views: {
+      goal_stage_objective_progress: {
+        Row: {
+          checks_count: number | null;
+          goal_id: string | null;
+          objective_id: string | null;
+          stage_id: string | null;
+          target_count: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "goal_stage_targets_link_fkey";
+            columns: ["goal_id", "objective_id"];
+            isOneToOne: false;
+            referencedRelation: "goal_objectives";
+            referencedColumns: ["goal_id", "objective_id"];
+          },
+        ];
+      };
       goal_stage_progress: {
         Row: {
           checks_count: number | null;
@@ -386,18 +482,17 @@ export type Database = {
         };
         Relationships: [];
       };
-      goal_stage_objective_progress: {
-        Row: {
-          checks_count: number | null;
-          goal_id: string | null;
-          objective_id: string | null;
-          stage_id: string | null;
-          target_count: number | null;
-        };
-        Relationships: [];
-      };
     };
     Functions: {
+      add_objective_to_day: {
+        Args: {
+          day: string;
+          mark_done?: boolean;
+          objective_id: string;
+          replaced_objective_id?: string;
+        };
+        Returns: string;
+      };
       reschedule_objective: {
         Args: {
           from_day: string;
