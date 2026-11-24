@@ -20,7 +20,7 @@ import {
   getWeekday,
   isDay,
 } from "@/app/utils/dates";
-import { getOccurrence, type Reschedule } from "@/app/utils/occurrences";
+import { getOccurrence, getRoutineChanges, type DayChanges } from "@/app/utils/occurrences";
 import { getCurrentStreak, getLongestStreak } from "@/app/utils/streak";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
@@ -38,7 +38,7 @@ const STATE_LABELS: Record<DayState, string> = {
   done: "feito",
   missed: "faltou",
   scheduled: "programado",
-  moved: "mudou de dia",
+  moved: "mudou de dia ou foi trocado",
   off: "não programado",
 };
 
@@ -93,12 +93,20 @@ async function ObjectiveDetail({
   const user = await requireUser();
   const supabase = createClient(await cookies());
 
-  const [objectiveResult, checksResult, reschedulesResult, timezone] = await Promise.all([
+  const [objectiveResult, checksResult, reschedulesResult, additionsResult, alternativesResult, timezone] = await Promise.all([
     supabase.from("objectives").select("*").eq("id", id).maybeSingle(),
     supabase.from("objective_checks").select("day").eq("objective_id", id).order("day"),
     supabase
       .from("objective_reschedules")
       .select("id, objective_id, from_day, to_day")
+      .eq("objective_id", id),
+    supabase
+      .from("objective_additions")
+      .select("id, objective_id, day, replaced_objective_id")
+      .or(`objective_id.eq.${id},replaced_objective_id.eq.${id}`),
+    supabase
+      .from("objective_alternatives")
+      .select("objectives!objective_alternatives_alternative_fkey ( title, archived_at )")
       .eq("objective_id", id),
     getUserTimezone(supabase, user.id),
   ]);
@@ -106,13 +114,27 @@ async function ObjectiveDetail({
   if (!objective) notFound();
   if (checksResult.error) throw checksResult.error;
   if (reschedulesResult.error) throw reschedulesResult.error;
-  const reschedules: Reschedule[] = reschedulesResult.data.map((row) => ({
-    id: row.id,
-    objectiveId: row.objective_id,
-    fromDay: row.from_day,
-    toDay: row.to_day,
-  }));
-  const received = new Set(reschedules.map((item) => item.toDay));
+  if (additionsResult.error) throw additionsResult.error;
+  if (alternativesResult.error) throw alternativesResult.error;
+  const changes: DayChanges = {
+    reschedules: reschedulesResult.data.map((row) => ({
+      id: row.id,
+      objectiveId: row.objective_id,
+      fromDay: row.from_day,
+      toDay: row.to_day,
+    })),
+    additions: additionsResult.data.map((row) => ({
+      id: row.id,
+      objectiveId: row.objective_id,
+      day: row.day,
+      replacedObjectiveId: row.replaced_objective_id,
+    })),
+  };
+  const { removedDays, addedDays } = getRoutineChanges(id, changes);
+  const received = new Set(addedDays);
+  const alternativeTitles = alternativesResult.data.flatMap((link) =>
+    link.objectives && !link.objectives.archived_at ? [link.objectives.title] : [],
+  );
 
   const today = getUserToday(timezone);
   const checkedDays = new Set(checksResult.data.map((check) => check.day));
@@ -120,7 +142,14 @@ async function ObjectiveDetail({
   const firstCheck = checksResult.data[0]?.day;
   const firstDay = firstCheck && firstCheck < createdDay ? firstCheck : createdDay;
 
-  const streakInput = { weekdays: objective.weekdays, checkedDays, firstDay, today, reschedules };
+  const streakInput = {
+    weekdays: objective.weekdays,
+    checkedDays,
+    firstDay,
+    today,
+    removedDays,
+    addedDays,
+  };
   const currentStreak = getCurrentStreak(streakInput);
   const longestStreak = getLongestStreak(streakInput);
 
@@ -132,13 +161,10 @@ async function ObjectiveDetail({
 
   const getState = (day: string): DayState => {
     if (checkedDays.has(day)) return "done";
-    const occurrence = getOccurrence({ id, weekdays: objective.weekdays }, day, reschedules);
-    if (!occurrence.due) {
-      const movedAway = reschedules.some((item) => item.fromDay === day);
-      return movedAway ? "moved" : "off";
-    }
+    const occurrence = getOccurrence({ id, weekdays: objective.weekdays }, day, changes);
+    if (!occurrence.due) return occurrence.movedTo || occurrence.replacedBy ? "moved" : "off";
     if (day >= today) return "scheduled";
-    return day >= firstDay || occurrence.reschedule ? "missed" : "off";
+    return day >= firstDay || occurrence.reschedule || occurrence.addition ? "missed" : "off";
   };
 
   const correctable: string[] = [];
@@ -151,6 +177,7 @@ async function ObjectiveDetail({
 
   const meta = [formatWeekdays(objective.weekdays).toLowerCase()];
   if (objective.reschedulable) meta.push("pode mudar de dia");
+  if (alternativeTitles.length > 0) meta.push(`pode ser trocado por ${formatList(alternativeTitles)}`);
   if (objective.archived_at) meta.push("arquivado");
 
   return (
@@ -283,7 +310,7 @@ function Calendar({
                       data-state={getState(day)}
                       data-received={received.has(day) || undefined}
                       data-today={day === today || undefined}
-                      aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", recebeu realocação" : ""}`}
+                      aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", realocado ou extra" : ""}`}
                     >
                       {Number(day.slice(8))}
                     </span>
@@ -300,12 +327,16 @@ function Calendar({
           <li data-state="done">Feito</li>
           <li data-state="missed">Faltou</li>
           <li data-state="scheduled">Programado</li>
-          <li data-state="received">Recebeu realocação</li>
-          <li data-state="moved">Mudou de dia</li>
+          <li data-state="received">Realocado ou extra</li>
+          <li data-state="moved">Mudou ou trocado</li>
         </ul>
       </section>
     </PendingNavigation>
   );
+}
+
+function formatList(items: string[]) {
+  return items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} ou ${items.at(-1)}`;
 }
 
 function chunkWeeks(leading: number, days: string[]) {

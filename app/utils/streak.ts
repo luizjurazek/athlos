@@ -1,24 +1,25 @@
 import { addDays, getWeekday } from "./dates";
 
-export type Reschedule = { fromDay: string; toDay: string };
-
 type StreakInput = {
   weekdays: number[];
   checkedDays: ReadonlySet<string>;
   firstDay: string;
   today: string;
-  reschedules?: Reschedule[];
+  /** Scheduled days that left the routine: reschedule origins and replaced days (`getRoutineChanges`). */
+  removedDays?: string[];
+  /** Days outside the routine: reschedule destinations and additions (`getRoutineChanges`). */
+  addedDays?: string[];
 };
 
-// RN-16: a rescheduled occurrence counts on its destination, and its origin is not a miss.
-function getOccurrences({ weekdays, firstDay, today, reschedules = [] }: StreakInput) {
-  const origins = new Set(reschedules.map((item) => item.fromDay));
+// RN-16/RN-22: moved or replaced days are not misses; destinations and additions count like any scheduled day.
+function getOccurrences({ weekdays, firstDay, today, removedDays = [], addedDays = [] }: StreakInput) {
+  const removed = new Set(removedDays);
   const days = new Set<string>();
   for (let day = firstDay; day <= today; day = addDays(day, 1)) {
-    if (weekdays.includes(getWeekday(day)) && !origins.has(day)) days.add(day);
+    if (weekdays.includes(getWeekday(day)) && !removed.has(day)) days.add(day);
   }
-  for (const { toDay } of reschedules) {
-    if (toDay >= firstDay && toDay <= today) days.add(toDay);
+  for (const day of addedDays) {
+    if (day >= firstDay && day <= today) days.add(day);
   }
   return [...days].sort();
 }
