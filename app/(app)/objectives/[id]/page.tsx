@@ -13,6 +13,7 @@ import {
   getWeekday,
   isDay,
 } from "@/app/utils/dates";
+import { getOccurrence, type Reschedule } from "@/app/utils/occurrences";
 import { getCurrentStreak, getLongestStreak } from "@/app/utils/streak";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
@@ -24,12 +25,13 @@ import styles from "../objectives.module.css";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type DayState = "done" | "missed" | "scheduled" | "off";
+type DayState = "done" | "missed" | "scheduled" | "moved" | "off";
 
 const STATE_LABELS: Record<DayState, string> = {
   done: "feito",
   missed: "faltou",
   scheduled: "programado",
+  moved: "mudou de dia",
   off: "não programado",
 };
 
@@ -59,14 +61,26 @@ async function ObjectiveDetail({
   const user = await requireUser();
   const supabase = createClient(await cookies());
 
-  const [objectiveResult, checksResult, timezone] = await Promise.all([
+  const [objectiveResult, checksResult, reschedulesResult, timezone] = await Promise.all([
     supabase.from("objectives").select("*").eq("id", id).maybeSingle(),
     supabase.from("objective_checks").select("day").eq("objective_id", id).order("day"),
+    supabase
+      .from("objective_reschedules")
+      .select("id, objective_id, from_day, to_day")
+      .eq("objective_id", id),
     getUserTimezone(supabase, user.id),
   ]);
   const objective = objectiveResult.data;
   if (!objective) notFound();
   if (checksResult.error) throw checksResult.error;
+  if (reschedulesResult.error) throw reschedulesResult.error;
+  const reschedules: Reschedule[] = reschedulesResult.data.map((row) => ({
+    id: row.id,
+    objectiveId: row.objective_id,
+    fromDay: row.from_day,
+    toDay: row.to_day,
+  }));
+  const received = new Set(reschedules.map((item) => item.toDay));
 
   const today = getUserToday(timezone);
   const checkedDays = new Set(checksResult.data.map((check) => check.day));
@@ -74,7 +88,7 @@ async function ObjectiveDetail({
   const firstCheck = checksResult.data[0]?.day;
   const firstDay = firstCheck && firstCheck < createdDay ? firstCheck : createdDay;
 
-  const streakInput = { weekdays: objective.weekdays, checkedDays, firstDay, today };
+  const streakInput = { weekdays: objective.weekdays, checkedDays, firstDay, today, reschedules };
   const currentStreak = getCurrentStreak(streakInput);
   const longestStreak = getLongestStreak(streakInput);
 
@@ -86,9 +100,13 @@ async function ObjectiveDetail({
 
   const getState = (day: string): DayState => {
     if (checkedDays.has(day)) return "done";
-    if (!objective.weekdays.includes(getWeekday(day))) return "off";
+    const occurrence = getOccurrence({ id, weekdays: objective.weekdays }, day, reschedules);
+    if (!occurrence.due) {
+      const movedAway = reschedules.some((item) => item.fromDay === day);
+      return movedAway ? "moved" : "off";
+    }
     if (day >= today) return "scheduled";
-    return day >= firstDay ? "missed" : "off";
+    return day >= firstDay || occurrence.reschedule ? "missed" : "off";
   };
 
   const correctable: string[] = [];
@@ -127,6 +145,7 @@ async function ObjectiveDetail({
           month={month}
           today={today}
           getState={getState}
+          received={received}
           objectiveId={id}
           canGoBack={month > firstMonth}
           canGoForward={month < thisMonth}
@@ -176,6 +195,7 @@ function Calendar({
   month,
   today,
   getState,
+  received,
   objectiveId,
   canGoBack,
   canGoForward,
@@ -183,6 +203,7 @@ function Calendar({
   month: string;
   today: string;
   getState: (day: string) => DayState;
+  received: ReadonlySet<string>;
   objectiveId: string;
   canGoBack: boolean;
   canGoForward: boolean;
@@ -226,8 +247,9 @@ function Calendar({
                   role="cell"
                   className={styles.calendarDay}
                   data-state={getState(day)}
+                  data-received={received.has(day) || undefined}
                   data-today={day === today || undefined}
-                  aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}`}
+                  aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", recebeu realocação" : ""}`}
                 >
                   {Number(day.slice(8))}
                 </span>
@@ -243,6 +265,8 @@ function Calendar({
         <li data-state="done">Feito</li>
         <li data-state="missed">Faltou</li>
         <li data-state="scheduled">Programado</li>
+        <li data-state="received">Recebeu realocação</li>
+        <li data-state="moved">Mudou de dia</li>
       </ul>
     </section>
   );

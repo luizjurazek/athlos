@@ -809,6 +809,29 @@
   color: var(--color-text-muted);
 }
 
+.calendarDay[data-state="moved"] {
+  border-style: dashed;
+  border-color: var(--color-border-strong);
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.calendarDay[data-received="true"] {
+  position: relative;
+}
+
+.calendarDay[data-received="true"]::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
 .calendarDay[data-today="true"] {
   outline: 2px solid var(--color-text);
   outline-offset: 2px;
@@ -845,6 +868,15 @@
 
 .calendarLegend li[data-state="missed"]::before {
   border-color: var(--color-danger);
+}
+
+.calendarLegend li[data-state="received"]::before {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.calendarLegend li[data-state="moved"]::before {
+  border-style: dashed;
 }
 
 .correctionRow {

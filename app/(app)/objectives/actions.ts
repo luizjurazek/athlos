@@ -2,9 +2,12 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getBackfillStart } from "@/app/utils/checks";
+import { getUserToday } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { normalizeWeekdays } from "@/app/utils/weekdays";
+import { getUserTimezone } from "../dashboard/day-objectives";
 import {
   isObjectiveColor,
   isObjectiveIcon,
@@ -13,7 +16,29 @@ import {
 
 export type FormState = { error?: string } | undefined;
 
+
 type Client = ReturnType<typeof createClient>;
+
+/** Reschedules still open: destination inside the window (or ahead) and without a check yet. */
+async function countPendingReschedules(supabase: Client, objectiveId: string, userId: string) {
+  const today = getUserToday(await getUserTimezone(supabase, userId));
+  const [reschedules, checks] = await Promise.all([
+    supabase
+      .from("objective_reschedules")
+      .select("to_day")
+      .eq("objective_id", objectiveId)
+      .gte("to_day", getBackfillStart(today)),
+    supabase
+      .from("objective_checks")
+      .select("day")
+      .eq("objective_id", objectiveId)
+      .gte("day", getBackfillStart(today)),
+  ]);
+  if (reschedules.error) throw reschedules.error;
+  if (checks.error) throw checks.error;
+  const checkedDays = new Set(checks.data.map((check) => check.day));
+  return reschedules.data.filter((item) => !checkedDays.has(item.to_day)).length;
+}
 
 function parseGoalIds(formData: FormData) {
   return [
@@ -131,11 +156,20 @@ export async function updateObjective(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = parseObjective(formData);
   if ("error" in parsed) return { error: parsed.error };
 
   const supabase = createClient(await cookies());
+  if (!parsed.input.reschedulable) {
+    const pending = await countPendingReschedules(supabase, id, user.id).catch(() => null);
+    if (pending === null) return { error: "Não foi possível salvar o objetivo. Tente de novo." };
+    if (pending > 0) {
+      return {
+        error: `Esse objetivo tem ${pending === 1 ? "1 mudança de dia pendente" : `${pending} mudanças de dia pendentes`}. Desfaça antes de desligar "Pode mudar de dia".`,
+      };
+    }
+  }
   const goalIds = parseGoalIds(formData);
   let removedGoalIds: string[];
   let addedGoalIds: string[];
