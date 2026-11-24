@@ -63,6 +63,7 @@
   /* Feedback */
   --color-danger: light-dark(#d70015, #ff6961);
   --color-success: light-dark(#1e7a35, #30d158);
+  --color-on-success: var(--palette-white);
   --color-warning: light-dark(#b25000, #ffd60a);
   --color-danger-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
   --color-success-bg: color-mix(in srgb, var(--color-success) 12%, transparent);
