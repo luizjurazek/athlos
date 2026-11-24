@@ -28,6 +28,11 @@ const TABS: readonly { href: string; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    href: "/goals",
+    label: "Metas",
+    icon: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  },
+  {
     href: "/settings",
     label: "Ajustes",
     icon: (
