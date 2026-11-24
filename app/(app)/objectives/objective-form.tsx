@@ -13,6 +13,7 @@ import {
   WORKDAYS,
   type Weekday,
 } from "@/app/utils/weekdays";
+import type { LinkableGoal } from "../goals/data";
 import type { FormState } from "./actions";
 import { ObjectiveIcon } from "./objective-icon";
 import {
@@ -29,6 +30,8 @@ type ObjectiveFormProps = {
     Objective,
     "title" | "color" | "icon" | "weekdays" | "reschedulable"
   >;
+  goals: LinkableGoal[];
+  linkedGoalIds?: string[];
   submitLabel: string;
 };
 
@@ -48,6 +51,8 @@ function sameDays(a: readonly Weekday[], b: readonly Weekday[]) {
 export function ObjectiveForm({
   action,
   objective,
+  goals,
+  linkedGoalIds = [],
   submitLabel,
 }: ObjectiveFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -60,6 +65,13 @@ export function ObjectiveForm({
   const [reschedulable, setReschedulable] = useState(
     objective?.reschedulable ?? false,
   );
+  const [goalIds, setGoalIds] = useState(linkedGoalIds);
+
+  function toggleGoal(id: string) {
+    setGoalIds((current) =>
+      current.includes(id) ? current.filter((goalId) => goalId !== id) : [...current, id],
+    );
+  }
 
   function toggleDay(day: Weekday) {
     setWeekdays((current) =>
@@ -217,6 +229,27 @@ export function ObjectiveForm({
               ))}
             </div>
           </fieldset>
+          {goals.length > 0 && (
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>Metas</legend>
+              <div className={styles.presets}>
+                {goals.map((goal) => (
+                  <label key={goal.id} className={styles.goalOption}>
+                    <input
+                      className={styles.visuallyHidden}
+                      type="checkbox"
+                      name="goal_ids"
+                      value={goal.id}
+                      checked={goalIds.includes(goal.id)}
+                      onChange={() => toggleGoal(goal.id)}
+                    />
+                    {goal.title}
+                  </label>
+                ))}
+              </div>
+              <p className={styles.hint}>Os checks deste objetivo contam para as metas marcadas.</p>
+            </fieldset>
+          )}
         </div>
       </div>
 

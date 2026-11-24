@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
+import { getLinkableGoals } from "../../../goals/data";
 import {
   archiveObjective,
   deleteObjective,
@@ -37,12 +38,15 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
     .eq("id", id)
     .maybeSingle();
   if (!objective) notFound();
+  const { goals, linkedIds } = await getLinkableGoals(supabase, id);
 
   return (
     <>
       <ObjectiveForm
         action={updateObjective.bind(null, id)}
         objective={objective}
+        goals={goals}
+        linkedGoalIds={linkedIds}
         submitLabel="Salvar"
       />
       <ObjectiveActionsPanel

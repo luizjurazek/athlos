@@ -1,4 +1,7 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
+import { createClient } from "@/app/utils/supabase/server";
+import { getLinkableGoals } from "../../goals/data";
 import { requireUser } from "@/app/utils/supabase/user";
 import { createObjective } from "../actions";
 import { ObjectiveForm } from "../objective-form";
@@ -19,5 +22,6 @@ export default function NewObjectivePage() {
 
 async function NewObjectiveForm() {
   await requireUser();
-  return <ObjectiveForm action={createObjective} submitLabel="Criar objetivo" />;
+  const { goals } = await getLinkableGoals(createClient(await cookies()));
+  return <ObjectiveForm action={createObjective} goals={goals} submitLabel="Criar objetivo" />;
 }

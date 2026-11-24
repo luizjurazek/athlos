@@ -272,6 +272,28 @@
     background-color var(--duration-fast) var(--ease-standard);
 }
 
+.goalOption {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.goalOption:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
 .chip[aria-pressed="true"] {
   border-color: var(--color-primary);
   background: var(--color-primary);
@@ -353,6 +375,7 @@
 }
 
 .day:has(input:focus-visible),
+.goalOption:has(input:focus-visible),
 .iconOption:has(input:focus-visible),
 .colorOption:has(input:focus-visible) {
   outline: 2px solid var(--color-focus);
@@ -361,6 +384,7 @@
 
 .day:active,
 .chip:active,
+.goalOption:active,
 .iconOption:active,
 .colorOption:active {
   transform: scale(0.97);
@@ -497,6 +521,7 @@
   }
 
   .chip:hover,
+  .goalOption:hover,
   .iconOption:hover {
     border-color: var(--color-border-strong);
   }
