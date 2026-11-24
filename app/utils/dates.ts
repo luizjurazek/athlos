@@ -81,3 +81,28 @@ export function formatShortDate(day: string) {
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   return `${WEEKDAYS[date.getUTCDay()].short.toLowerCase()}, ${dd}/${mm}`;
 }
+
+export function addMonths(day: string, amount: number): string {
+  const date = parseDay(day);
+  const targetMonth = date.getUTCMonth() + amount;
+  const lastDayOfTarget = new Date(
+    Date.UTC(date.getUTCFullYear(), targetMonth + 1, 0),
+  ).getUTCDate();
+  date.setUTCDate(Math.min(date.getUTCDate(), lastDayOfTarget));
+  date.setUTCMonth(targetMonth);
+  return toDay(date);
+}
+
+export function formatNumericDate(day: string) {
+  const [year, month, date] = day.split("-");
+  return `${date}/${month}/${year}`;
+}
+
+export function formatDayMonth(day: string) {
+  const [, month, date] = day.split("-");
+  return `${date}/${month}`;
+}
+
+export function diffDays(from: string, to: string) {
+  return Math.round((parseDay(to).getTime() - parseDay(from).getTime()) / 86_400_000);
+}
