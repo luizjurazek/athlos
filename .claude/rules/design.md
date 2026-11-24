@@ -22,7 +22,8 @@ depois ampliada para desktop. Uma tela só está pronta se funcionar muito bem n
   `--radius-xl`, chips e pílulas `--radius-full`.
 - **Profundidade sutil:** sombras leves (`--shadow-sm`/`--shadow-md`); barras fixas com material
   translúcido (`backdrop-filter: saturate(180%) blur(20px)` sobre `color-mix` do fundo).
-- **Cor com parcimônia:** laranja só para a ação principal, estado ativo e foco. O resto é neutro.
+- **Cor com parcimônia:** a ação principal é monocromática (`--color-primary`); laranja só para foco e
+  acentos pequenos com papel definido (ver rule `ux-patterns`). O resto é neutro.
 - **Movimento** curto e natural: `--duration-*` + `--ease-standard` (ou `--ease-spring` para entradas).
   Anime só `transform` e `opacity`. Feedback de toque com `:active { transform: scale(0.97) }`.
   `prefers-reduced-motion` já zera as durações — sempre use os tokens, nunca ms fixos.

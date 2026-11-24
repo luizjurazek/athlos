@@ -48,6 +48,7 @@
 - `supabase-auth` — `getClaims()` no servidor, Server Actions, proxy e callback de email.
 - `design` — visual inspirado na Apple e **mobile-first** (prioridade sempre mobile); alvos de toque, safe areas, tokens de espaço/raio/tipografia/movimento.
 - `styling` — CSS Modules e tokens de `theme.css`; nada de cor fixa nem Tailwind.
+- `ux-patterns` — padrões aprovados de interação e componentes: papel de cada cor, check e listas, progresso/ritmo, sheets com opções desabilitadas explicadas, formulários, calendário (domingo primeiro), textos.
 - `migrations` — SQL em `supabase/migrations`: RLS sempre, `security definer` com `search_path = ''`.
 
 ## Comandos
