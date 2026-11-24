@@ -19,6 +19,18 @@
     var(--space-8) calc(var(--space-4) + env(safe-area-inset-left));
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* Mobile keeps the primary action at the bottom (thumb zone); desktop moves it next to the title. */
+.header .headerAction {
+  display: none;
+}
+
 .title {
   font-size: var(--text-large-title);
   font-weight: var(--font-weight-heading);
@@ -165,6 +177,13 @@
 
 /* Form */
 .form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.formColumns,
+.formColumn {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -484,8 +503,53 @@
 }
 
 @media (min-width: 640px) {
+  .header .headerAction {
+    display: inline-flex;
+  }
+
+  .bottomAction {
+    display: none;
+  }
+
+  /* Archive / delete sit side by side instead of a full-width list. */
+  .actionsList {
+    display: flex;
+    align-self: flex-start;
+  }
+
+  .actionsList > * + * {
+    border-top: none;
+    border-left: 1px solid var(--color-border);
+  }
+
+  .actionsList .rowButton {
+    width: auto;
+    padding: 0 var(--space-5);
+    white-space: nowrap;
+  }
+
+  /* Objectives become a grid of cards instead of one stretched list. */
+  .cardGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    border-radius: 0;
+    background: none;
+    overflow: visible;
+  }
+
+  .cardGrid > * + * {
+    border-top: none;
+  }
+
+  .cardGrid > li {
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+
   .content {
-    max-width: 1100px;
+    max-width: var(--layout-max-width);
     margin: 0 auto;
     padding: var(--space-10) var(--space-6);
   }
@@ -494,17 +558,22 @@
     font-size: var(--text-title-1);
   }
 
-  .section,
-  .narrow {
-    max-width: 640px;
-  }
-
-  .narrow {
-    width: 100%;
-  }
-
   .button {
     width: auto;
     align-self: flex-start;
   }
 }
+
+@media (min-width: 1024px) {
+  .formColumns {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+    gap: var(--space-12);
+  }
+
+  .cardGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+

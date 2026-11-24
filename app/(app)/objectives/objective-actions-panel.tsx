@@ -24,7 +24,7 @@ export function ObjectiveActionsPanel({
   return (
     <section className={styles.section}>
       <Feedback state={deleteState} />
-      <div className={styles.list}>
+      <div className={`${styles.list} ${styles.actionsList}`}>
         <form action={archived ? unarchiveAction : archiveAction}>
           <button className={styles.rowButton} type="submit">
             {archived ? "Desarquivar objetivo" : "Arquivar objetivo"}

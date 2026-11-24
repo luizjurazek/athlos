@@ -17,6 +17,17 @@
   right: calc(var(--space-2) + env(safe-area-inset-right));
 }
 
+.shell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Brand panel only exists on desktop, where it fills the left half. */
+.brandPanel {
+  display: none;
+}
+
 .column {
   width: 100%;
   max-width: 380px;
@@ -192,3 +203,77 @@
     font-size: var(--text-large-title);
   }
 }
+
+@media (min-width: 1024px) {
+  .shell {
+    max-width: var(--layout-max-width);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-12);
+  }
+
+  .brandPanel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-4);
+    min-height: min(640px, calc(100dvh - 2 * var(--space-12)));
+    padding: var(--space-12);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+  }
+
+  .brandLogo {
+    margin-bottom: var(--space-4);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .brandName {
+    font-size: var(--text-large-title);
+    font-weight: var(--font-weight-heading);
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  .brandTagline {
+    font-size: var(--text-title-3);
+    color: var(--color-text-muted);
+  }
+
+  .highlights {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    list-style: none;
+    color: var(--color-text-muted);
+  }
+
+  .highlights li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .highlights li::before {
+    content: "";
+    flex-shrink: 0;
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-text);
+  }
+
+  .column {
+    justify-self: center;
+    max-width: 400px;
+  }
+
+  /* The brand panel already shows the logo. */
+  .logo {
+    display: none;
+  }
+}
+

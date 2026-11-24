@@ -10,25 +10,29 @@ export default function SettingsPage() {
   return (
     <main className={styles.content}>
       <h1 className={styles.title}>Ajustes</h1>
-      <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
-        <AccountSection />
-      </Suspense>
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Aparência</h2>
-        <ul className={styles.group}>
-          <li className={styles.row}>
-            <span>Tema claro / escuro</span>
-            <ThemeToggle />
-          </li>
-        </ul>
-      </section>
-      <form action={logout} className={styles.section}>
-        <div className={styles.group}>
-          <button className={styles.logout} type="submit">
-            Sair
-          </button>
+      <div className={styles.columns}>
+        <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
+          <AccountSection />
+        </Suspense>
+        <div className={styles.column}>
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Aparência</h2>
+            <ul className={styles.group}>
+              <li className={styles.row}>
+                <span>Tema claro / escuro</span>
+                <ThemeToggle />
+              </li>
+            </ul>
+          </section>
+          <form action={logout} className={styles.section}>
+            <div className={styles.group}>
+              <button className={styles.logout} type="submit">
+                Sair
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </main>
   );
 }

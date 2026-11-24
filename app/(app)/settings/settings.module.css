@@ -18,6 +18,13 @@
   color: var(--color-text-muted);
 }
 
+.columns,
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
 /* Inset grouped list. */
 .section {
   display: flex;
@@ -87,7 +94,7 @@
 
 @media (min-width: 640px) {
   .content {
-    max-width: 640px;
+    max-width: var(--layout-max-width);
     margin: 0 auto;
     padding: var(--space-10) var(--space-6);
   }
@@ -96,3 +103,13 @@
     font-size: var(--text-title-1);
   }
 }
+
+@media (min-width: 1024px) {
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--space-8);
+  }
+}
+

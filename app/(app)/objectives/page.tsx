@@ -11,7 +11,12 @@ import styles from "./objectives.module.css";
 export default function ObjectivesPage() {
   return (
     <main className={styles.content}>
-      <h1 className={styles.title}>Objetivos</h1>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Objetivos</h1>
+        <Link className={`${styles.button} ${styles.headerAction}`} href="/objectives/new">
+          Novo objetivo
+        </Link>
+      </header>
       <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
         <ObjectivesList />
       </Suspense>
@@ -45,7 +50,7 @@ async function ObjectivesList() {
             Nenhum objetivo ainda. Crie o primeiro para montar sua rotina.
           </p>
         )}
-        <Link className={styles.button} href="/objectives/new">
+        <Link className={`${styles.button} ${styles.bottomAction}`} href="/objectives/new">
           Novo objetivo
         </Link>
       </section>
@@ -62,7 +67,7 @@ async function ObjectivesList() {
 
 function ObjectiveRows({ objectives }: { objectives: Objective[] }) {
   return (
-    <ul className={styles.list}>
+    <ul className={`${styles.list} ${styles.cardGrid}`}>
       {objectives.map((objective) => (
         <li key={objective.id}>
           <Link className={styles.row} href={`/objectives/${objective.id}/edit`}>

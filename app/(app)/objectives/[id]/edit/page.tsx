@@ -16,7 +16,7 @@ import styles from "../../objectives.module.css";
 
 export default function EditObjectivePage({ params }: PageProps<"/objectives/[id]/edit">) {
   return (
-    <main className={`${styles.content} ${styles.narrow}`}>
+    <main className={styles.content}>
       <BackLink href="/objectives" label="Objetivos" />
       <h1 className={styles.title}>Editar objetivo</h1>
       <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>

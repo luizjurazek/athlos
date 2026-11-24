@@ -42,8 +42,8 @@ depois ampliada para desktop. Uma tela só está pronta se funcionar muito bem n
 - **Altura:** `100dvh`/`min-height: 100dvh`, nunca `100vh` (quebra com a barra do Safari).
 - **Hover é bônus:** estilos de hover dentro de `@media (hover: hover)`; nada pode depender de hover.
 - Sem scroll horizontal em 320px. Texto longo quebra (`overflow-wrap: anywhere` em dados do usuário).
-- **Desktop:** conteúdo com `max-width` legível (~640px para formulários, ~1100px para páginas) e
-  centralizado; aproveite largura com grid de colunas, não esticando componentes.
+- **Desktop:** todo conteúdo (inclusive formulários e a top bar) ocupa até `--layout-max-width` (1280px),
+  centralizado; aproveite a largura com grid de colunas.
 
 ## Tokens
 
