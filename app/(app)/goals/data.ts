@@ -5,6 +5,7 @@ import {
   getGoalStatus,
   isStageCompleted,
   type ObjectiveTarget,
+  type ProgressSource,
 } from "@/app/utils/goals";
 
 type Client = ReturnType<typeof createClient>;
@@ -27,6 +28,7 @@ export type GoalStage = {
   targetCount: number;
   dueOn: string;
   windowStart: string;
+  windowEnd: string;
   checksCount: number;
   objectiveTargets?: ObjectiveTarget[];
   completed: boolean;
@@ -42,6 +44,7 @@ export type Goal = {
   startsOn: string;
   dueOn: string;
   status: GoalStatus;
+  progressSource: ProgressSource;
   completedManuallyOn: string | null;
   stages: GoalStage[];
   objectives: GoalObjective[];
@@ -49,6 +52,7 @@ export type Goal = {
 
 const GOAL_SELECT = `
   id, title, description, unit_label, starts_on, due_on, status, completed_manually_on,
+  progress_source,
   goal_stages ( id, position, title, target_count, due_on, completed_at, completed_manually_on ),
   goal_objectives ( objectives ( id, title, color, icon, weekdays, archived_at ) )
 `;
@@ -57,7 +61,7 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
   let goalsQuery = supabase.from("goals").select(GOAL_SELECT).order("created_at");
   let progressQuery = supabase
     .from("goal_stage_progress")
-    .select("stage_id, window_start, checks_count");
+    .select("stage_id, window_start, window_end, checks_count");
   let targetsQuery = supabase
     .from("goal_stage_objective_progress")
     .select("stage_id, objective_id, target_count, checks_count");
@@ -97,6 +101,7 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
     startsOn: goal.starts_on,
     dueOn: goal.due_on,
     status: goal.status,
+    progressSource: goal.progress_source,
     completedManuallyOn: goal.completed_manually_on,
     stages: goal.goal_stages
       .toSorted((a, b) => a.position - b.position)
@@ -118,6 +123,7 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
           id: stage.id,
           position: stage.position,
           title: stage.title,
+          windowEnd: stageProgress?.window_end ?? stage.due_on,
           completed: isStageCompleted(base),
           completedAt: stage.completed_at,
         };
@@ -144,6 +150,8 @@ export function getReopenableStage(goal: Goal, today: string) {
   const lastCompleted = goal.stages.findLastIndex((stage) => stage.completed);
   const stage = goal.stages[lastCompleted];
   if (!stage?.completedManuallyOn || stage.dueOn < today) return null;
+  // Entry stages closed by reaching the target reopen by removing an entry, not from here.
+  if (goal.progressSource === "entries" && stage.checksCount >= stage.targetCount) return null;
   return stage;
 }
 
@@ -195,6 +203,22 @@ export async function getObjectiveChecks(
     .lte("day", to);
   if (error) throw error;
   return data.map((check) => ({ objectiveId: check.objective_id, day: check.day }));
+}
+
+export type GoalEntry = { id: string; day: string; amount: number; note: string | null };
+
+export async function getGoalEntries(supabase: Client, goalId: string, from: string, to: string) {
+  if (from > to) return [];
+  const { data, error } = await supabase
+    .from("goal_entries")
+    .select("id, day, amount, note")
+    .eq("goal_id", goalId)
+    .gte("day", from)
+    .lte("day", to)
+    .order("day", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data satisfies GoalEntry[];
 }
 
 export async function getSelectableObjectives(supabase: Client, linkedIds: string[] = []) {

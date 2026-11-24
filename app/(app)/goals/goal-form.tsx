@@ -2,13 +2,14 @@
 
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { addDays, addMonths, formatDayMonth, isDay } from "@/app/utils/dates";
+import type { ProgressSource } from "@/app/utils/goals";
 import { formatWeekdays } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import ui from "../objectives/objectives.module.css";
 import type { GoalFormState } from "./actions";
 import type { Goal, GoalObjective } from "./data";
 import { getObjectiveCapacities, getStageCapacity } from "./feasibility";
-import { DEFAULT_UNIT_LABEL, formatCount } from "./format";
+import { DEFAULT_UNIT_LABEL, ENTRY_UNIT_LABEL, formatCount } from "./format";
 import {
   countErrors,
   FIRST_STAGE_ERROR,
@@ -51,6 +52,11 @@ type GoalFormProps = {
 };
 
 const DUE_SHORTCUTS = [3, 6, 12];
+
+const PROGRESS_SOURCES: { id: ProgressSource; label: string }[] = [
+  { id: "checks", label: "Checks dos objetivos" },
+  { id: "entries", label: "Registro na meta" },
+];
 
 const TARGET_MODES: { id: TargetMode; label: string }[] = [
   { id: "per-objective", label: "Por objetivo" },
@@ -100,18 +106,32 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
   const [description, setDescription] = useState(goal?.description ?? "");
   const [unitLabel, setUnitLabel] = useState(goal?.unitLabel ?? "");
   const [startsOn, setStartsOn] = useState(goal?.startsOn ?? today);
+  const [progressSource, setProgressSource] = useState<ProgressSource>(
+    goal?.progressSource ?? "checks",
+  );
   const [stages, setStages] = useState(() => initialStages(goal));
   const [objectiveIds, setObjectiveIds] = useState<string[]>(
     goal?.objectives.map((objective) => objective.id) ?? [],
   );
   const [submitted, setSubmitted] = useState(false);
 
-  const draft: GoalDraft = { title, description, unitLabel, startsOn, stages, objectiveIds };
+  const draft: GoalDraft = {
+    title,
+    description,
+    unitLabel,
+    startsOn,
+    progressSource,
+    stages,
+    objectiveIds,
+  };
+  const byEntries = progressSource === "entries";
+  const sourceLocked = stages.some((stage) => stage.locked);
   const errors = submitted ? validateGoal(draft) : state?.errors;
   const liveDateErrors = validateStageDates(startsOn, stages).map((message) =>
     message === STAGE_ORDER_ERROR || message === FIRST_STAGE_ERROR ? message : undefined,
   );
-  const unit = unitLabel.trim() || DEFAULT_UNIT_LABEL;
+  const unit =
+    unitLabel.trim() || (progressSource === "entries" ? ENTRY_UNIT_LABEL : DEFAULT_UNIT_LABEL);
   const selectedObjectives = objectives.filter((objective) => objectiveIds.includes(objective.id));
   const lastLockedIndex = stages.findLastIndex((stage) => stage.locked);
 
@@ -173,6 +193,38 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
 
       <div className={styles.columns}>
         <div className={styles.column}>
+          <div className={styles.field}>
+            <span className={styles.label} id="progress-source-label">
+              Como medir o progresso
+            </span>
+            <input type="hidden" name="progress_source" value={progressSource} />
+            <div
+              className={`${styles.tabs} ${styles.modeTabs}`}
+              role="group"
+              aria-labelledby="progress-source-label"
+            >
+              {PROGRESS_SOURCES.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className={styles.tab}
+                  aria-pressed={progressSource === source.id}
+                  disabled={sourceLocked}
+                  onClick={() => setProgressSource(source.id)}
+                >
+                  {source.label}
+                </button>
+              ))}
+            </div>
+            <span className={styles.fieldHint}>
+              {sourceLocked
+                ? "Não muda depois que uma etapa foi concluída."
+                : byEntries
+                  ? "Você registra o progresso na própria meta, ex.: +1 livro ou \"corri 5km\"."
+                  : "Cada check dos objetivos escolhidos conta para a meta."}
+            </span>
+          </div>
+
           <div className={styles.fields}>
             <Field label="Título" error={errors?.title} className={styles.titleField}>
               <input
@@ -187,16 +239,20 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
               />
             </Field>
             <Field
-              label="Contar como · opcional"
+              label={byEntries ? "Contar como" : "Contar como · opcional"}
               error={errors?.unitLabel}
-              hint='O que cada check representa, no plural. Vazio mostra "checks".'
+              hint={
+                byEntries
+                  ? `O que cada registro representa, no plural. Vazio mostra "${ENTRY_UNIT_LABEL}".`
+                  : `O que cada check representa, no plural. Vazio mostra "${DEFAULT_UNIT_LABEL}".`
+              }
             >
               <input
                 className={ui.input}
                 name="unit_label"
                 type="text"
                 autoComplete="off"
-                placeholder={DEFAULT_UNIT_LABEL}
+                placeholder={byEntries ? "livros" : DEFAULT_UNIT_LABEL}
                 maxLength={UNIT_LABEL_MAX_LENGTH}
                 value={unitLabel}
                 onChange={(event) => setUnitLabel(event.target.value)}
@@ -241,6 +297,7 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                 const canMoveDown =
                   index < stages.length - 1 && !stage.locked && !stages[index + 1].locked;
                 const canRemove = stages.length > 1 && !stage.locked && index > lastLockedIndex;
+                const mode = byEntries ? "total" : stage.mode;
                 return (
                   <li key={stage.key} className={styles.stage} data-locked={stage.locked || undefined}>
                     <div className={styles.stageHeader}>
@@ -290,8 +347,8 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                     </div>
                     {stageErrors?.title && <p className={styles.fieldError}>{stageErrors.title}</p>}
 
-                    <input type="hidden" name={`stage_${index}_mode`} value={stage.mode} />
-                    {(stage.mode === "per-objective" || selectedObjectives.length > 1) && (
+                    <input type="hidden" name={`stage_${index}_mode`} value={mode} />
+                    {!byEntries && (stage.mode === "per-objective" || selectedObjectives.length > 1) && (
                       <div
                         className={`${styles.tabs} ${styles.modeTabs}`}
                         role="group"
@@ -313,7 +370,7 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                     )}
 
                     <div className={styles.stageFields}>
-                      {stage.mode === "per-objective" ? (
+                      {mode === "per-objective" ? (
                         <input type="hidden" name="stage_target" value="" />
                       ) : (
                         <label className={styles.stageField}>
@@ -340,7 +397,7 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                       )}
                       <label
                         className={styles.stageField}
-                        data-wide={stage.mode === "per-objective" || undefined}
+                        data-wide={mode === "per-objective" || undefined}
                       >
                         <span className={styles.label}>Prazo</span>
                         <span
@@ -359,7 +416,7 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                       </label>
                     </div>
 
-                    {stage.mode === "per-objective" && (
+                    {mode === "per-objective" && (
                       <ObjectiveTargets
                         stage={stage}
                         index={index}
@@ -404,7 +461,12 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                       )
                     )}
 
-                    {!stage.locked && (
+                    {byEntries && !stage.locked && (
+                      <p className={styles.fieldHint}>
+                        Alvo 1 funciona como um marco, ex.: &quot;Correr 5km&quot;.
+                      </p>
+                    )}
+                    {!byEntries && !stage.locked && (
                       <Capacity
                         stage={stage}
                         windowStart={index === 0 ? startsOn : addDaysSafe(stages[index - 1].dueOn)}
@@ -431,9 +493,15 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
 
         <div className={styles.column}>
           <fieldset className={styles.section}>
-            <legend className={`${ui.sectionTitle} ${styles.legend}`}>Objetivos que contam</legend>
+            <legend className={`${ui.sectionTitle} ${styles.legend}`}>
+              {byEntries ? "Hábitos de apoio · opcional" : "Objetivos que contam"}
+            </legend>
             {objectives.length === 0 ? (
-              <p className={ui.empty}>Crie um objetivo antes de montar uma meta.</p>
+              <p className={ui.empty}>
+                {byEntries
+                  ? "Nenhum objetivo criado. Você pode montar a meta mesmo assim."
+                  : "Crie um objetivo antes de montar uma meta."}
+              </p>
             ) : (
               <ul className={ui.list}>
                 {objectives.map((objective) => (
@@ -461,7 +529,11 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
               </ul>
             )}
             {errors?.objectives && <p className={styles.fieldError}>{errors.objectives}</p>}
-            <p className={ui.hint}>Um check conta para todas as metas vinculadas ao objetivo.</p>
+            <p className={ui.hint}>
+              {byEntries
+                ? "Os checks aparecem na meta como apoio, mas não contam para o alvo."
+                : "Um check conta para todas as metas vinculadas ao objetivo."}
+            </p>
           </fieldset>
 
           <div className={styles.saveBar}>

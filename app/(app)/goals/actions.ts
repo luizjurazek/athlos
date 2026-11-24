@@ -1,15 +1,24 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getUserToday } from "@/app/utils/dates";
+import { getUserToday, isDay } from "@/app/utils/dates";
 import { getStageStatuses, hasStarted } from "@/app/utils/goals";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../dashboard/day-objectives";
-import { getGoal, getReopenableStage, type Goal, type GoalStage } from "./data";
+import {
+  getGoal,
+  getGoalEntries,
+  getReopenableStage,
+  type Goal,
+  type GoalStage,
+} from "./data";
 import {
   countErrors,
+  ENTRY_AMOUNT_MAX,
+  ENTRY_NOTE_MAX_LENGTH,
   getObjectiveTargets,
   parseTarget,
   validateGoal,
@@ -38,6 +47,7 @@ function readDraft(formData: FormData): GoalDraft {
     description: read("description"),
     unitLabel: read("unit_label"),
     startsOn: read("starts_on"),
+    progressSource: read("progress_source") === "entries" ? "entries" : "checks",
     stages: titles.map((title, index) => ({
       title,
       target: targets[index] ?? "",
@@ -70,6 +80,12 @@ export async function saveGoal(
     if (!current) return { error: "Meta não encontrada." };
     const lockedError = checkCompletedStages(current, draft);
     if (lockedError) return { error: lockedError };
+    if (
+      current.progressSource !== draft.progressSource &&
+      current.stages.some((stage) => stage.completed)
+    ) {
+      return { error: "A forma de medir não pode mudar depois que uma etapa foi concluída." };
+    }
   }
 
   const { data: savedId, error } = await supabase.rpc("save_goal", {
@@ -79,9 +95,11 @@ export async function saveGoal(
       description: draft.description.trim() || null,
       unit_label: draft.unitLabel.trim() || null,
       starts_on: draft.startsOn,
+      progress_source: draft.progressSource,
     },
     stages: draft.stages.map((stage) => {
-      const targets = stageTargets(stage, draft.objectiveIds);
+      const targets =
+        draft.progressSource === "checks" ? stageTargets(stage, draft.objectiveIds) : null;
       return {
         title: stage.title.trim(),
         target_count: targets
@@ -113,8 +131,8 @@ function stageTargets(stage: StageDraft, objectiveIds: string[]) {
   return stage.mode === "per-objective" ? getObjectiveTargets(stage, objectiveIds) : null;
 }
 
-function sameTargets(stage: GoalStage, submitted: StageDraft, objectiveIds: string[]) {
-  const targets = stageTargets(submitted, objectiveIds);
+function sameTargets(goal: Goal, stage: GoalStage, submitted: StageDraft, objectiveIds: string[]) {
+  const targets = goal.progressSource === "checks" ? stageTargets(submitted, objectiveIds) : null;
   if (!stage.objectiveTargets) return !targets && parseTarget(submitted.target) === stage.targetCount;
   if (!targets || targets.length !== stage.objectiveTargets.length) return false;
   return stage.objectiveTargets.every((saved) =>
@@ -134,7 +152,7 @@ function checkCompletedStages(current: Goal, draft: GoalDraft) {
     const unchanged =
       submitted &&
       submitted.title.trim() === stage.title &&
-      sameTargets(stage, submitted, draft.objectiveIds) &&
+      sameTargets(current, stage, submitted, draft.objectiveIds) &&
       submitted.dueOn === stage.dueOn;
     if (!unchanged) {
       return `A etapa ${stage.position} já foi concluída e não pode ser alterada.`;
@@ -253,6 +271,114 @@ export async function reopenGoal(goalId: string): Promise<GoalFormState> {
   if (error) {
     console.error("Failed to reopen goal", error);
     return { error: UPDATE_ERROR };
+  }
+  redirect(`/goals/${goalId}`);
+}
+
+async function insertEntry(
+  goalId: string,
+  { day, amount, note }: { day?: string; amount: number; note: string | null },
+) {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  const entry = { day: day ?? today, amount, note };
+  if (!goal || goal.progressSource !== "entries" || goal.status !== "active") {
+    return { error: "Esta meta não aceita registros agora." };
+  }
+  if (!isDay(entry.day) || entry.day > today) return { error: "Escolha um dia até hoje." };
+  if (entry.day < goal.startsOn) return { error: "O dia precisa ser depois do início da meta." };
+
+  const { error } = await supabase.from("goal_entries").insert({ goal_id: goalId, ...entry });
+  if (error) {
+    console.error("Failed to add goal entry", error);
+    return { error: "Não foi possível registrar. Tente de novo." };
+  }
+  await closeReachedStage(supabase, goalId, entry.day);
+  return null;
+}
+
+type Supabase = Awaited<ReturnType<typeof loadGoalForUpdate>>["supabase"];
+
+function findStageOn(goal: Goal, day: string) {
+  return goal.stages.find((stage) => stage.windowStart <= day && day <= stage.windowEnd);
+}
+
+/**
+ * An entry stage that reaches its target closes on the day of its last entry, so the next stage
+ * starts right away instead of waiting for the original deadline (e.g. "ran 5km" ahead of time).
+ */
+async function closeReachedStage(supabase: Supabase, goalId: string, day: string) {
+  const goal = await getGoal(supabase, goalId).catch(() => null);
+  const stage = goal && findStageOn(goal, day);
+  if (!stage || stage.completedManuallyOn || stage.checksCount < stage.targetCount) return;
+
+  const entries = await getGoalEntries(supabase, goalId, stage.windowStart, stage.dueOn);
+  const closedOn = entries[0]?.day ?? day;
+  const { error } = await supabase
+    .from("goal_stages")
+    .update({ completed_manually_on: closedOn, completed_at: new Date().toISOString() })
+    .eq("id", stage.id);
+  if (error) console.error("Failed to close reached stage", error);
+}
+
+export async function addGoalEntry(
+  goalId: string,
+  _prev: GoalFormState,
+  formData: FormData,
+): Promise<GoalFormState> {
+  const read = (name: string) => {
+    const value = formData.get(name);
+    return typeof value === "string" ? value.trim() : "";
+  };
+  const amount = Number(read("amount") || "1");
+  if (!Number.isInteger(amount) || amount < 1 || amount > ENTRY_AMOUNT_MAX) {
+    return { error: `A quantidade precisa ser um número inteiro de 1 a ${ENTRY_AMOUNT_MAX}.` };
+  }
+  const note = read("note");
+  if (note.length > ENTRY_NOTE_MAX_LENGTH) {
+    return { error: `A nota pode ter no máximo ${ENTRY_NOTE_MAX_LENGTH} caracteres.` };
+  }
+  const failure = await insertEntry(goalId, { day: read("day"), amount, note: note || null });
+  if (failure) return failure;
+  redirect(`/goals/${goalId}`);
+}
+
+/** +1 for today, from the goals summary on Hoje. */
+export async function quickAddGoalEntry(goalId: string): Promise<GoalFormState> {
+  const failure = await insertEntry(goalId, { amount: 1, note: null });
+  if (failure) return failure;
+  revalidatePath("/dashboard");
+  return undefined;
+}
+
+export async function deleteGoalEntry(goalId: string, entryId: string): Promise<GoalFormState> {
+  const { supabase, goal } = await loadGoalForUpdate(goalId);
+  const { data: entry } = await supabase
+    .from("goal_entries")
+    .select("day, amount")
+    .eq("id", entryId)
+    .maybeSingle();
+  // A stage closed by reaching its target reopens when this entry takes it below the target again.
+  const stage = goal && entry ? findStageOn(goal, entry.day) : undefined;
+  const reopens =
+    stage?.completedManuallyOn &&
+    stage.checksCount >= stage.targetCount &&
+    stage.checksCount - (entry?.amount ?? 0) < stage.targetCount;
+
+  const { error } = await supabase
+    .from("goal_entries")
+    .delete()
+    .eq("id", entryId)
+    .eq("goal_id", goalId);
+  if (error) {
+    console.error("Failed to delete goal entry", error);
+    return { error: "Não foi possível remover o registro. Tente de novo." };
+  }
+  if (reopens && stage) {
+    const { error: reopenError } = await supabase
+      .from("goal_stages")
+      .update({ completed_manually_on: null, completed_at: null })
+      .eq("id", stage.id);
+    if (reopenError) console.error("Failed to reopen stage", reopenError);
   }
   redirect(`/goals/${goalId}`);
 }

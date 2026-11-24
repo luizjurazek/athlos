@@ -462,6 +462,65 @@
   gap: var(--space-3);
 }
 
+.quickEntry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quickEntryRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.quickEntryRow > a {
+  flex: 1;
+  min-width: 0;
+}
+
+.quickEntryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: calc(var(--touch-target) + var(--space-2));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--font-weight-strong);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.quickEntryButton:active {
+  transform: scale(0.96);
+}
+
+.quickEntryButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.quickEntryButton svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.quickEntryError {
+  color: var(--color-danger);
+  font-size: var(--text-footnote);
+}
+
 .toast {
   position: fixed;
   top: calc(var(--space-3) + env(safe-area-inset-top));

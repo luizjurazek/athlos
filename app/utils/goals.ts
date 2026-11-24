@@ -22,6 +22,8 @@ export type StageStatus = "completed" | "expired" | "current" | "upcoming";
 
 export type GoalStatus = "active" | "completed" | "expired" | "abandoned";
 
+export type ProgressSource = "checks" | "entries";
+
 export type Pace = "ahead" | "on-track" | "slightly-behind" | "behind";
 
 const maxDay = (a: string, b: string) => (a > b ? a : b);
@@ -193,4 +195,16 @@ export function getUpcomingCapacity(stage: StageProgress, objectives: Required<S
     feasible: perObjective.every((item) => item.feasible),
     perObjective,
   };
+}
+
+/**
+ * Pace still needed in an entry goal, where scheduled days do not apply: what is missing spread
+ * over what is left of the window, per month when the window is long and per week otherwise.
+ */
+export function getEntriesPace(stage: StageProgress, today: string) {
+  const missing = Math.max(0, stage.targetCount - stage.checksCount);
+  const daysLeft = Math.max(1, diffDays(maxDay(today, stage.windowStart), stage.dueOn) + 1);
+  const period = daysLeft >= 60 ? "month" : "week";
+  const periods = daysLeft / (period === "month" ? 30.44 : 7);
+  return { missing, daysLeft, period, rate: missing / Math.max(1, periods) } as const;
 }

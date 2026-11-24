@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/app/utils/supabase/server";
 import { getGoals, syncGoalStatuses } from "../goals/data";
 import { GoalCard, toGoalCard } from "../goals/goal-card";
+import { QuickEntryGoal } from "./quick-entry-goal";
 import styles from "./dashboard.module.css";
 
 export async function GoalsSummary({ today }: { today: string }) {
@@ -29,11 +30,18 @@ export async function GoalsSummary({ today }: { today: string }) {
         </Link>
       </div>
       <ul className={styles.goalsList}>
-        {active.map((goal) => (
-          <li key={goal.id}>
-            <GoalCard card={toGoalCard(goal, today)} footer="remaining" />
-          </li>
-        ))}
+        {active.map((goal) => {
+          const card = toGoalCard(goal, today);
+          return (
+            <li key={goal.id}>
+              {card.quickEntry ? (
+                <QuickEntryGoal card={card} />
+              ) : (
+                <GoalCard card={card} footer="remaining" />
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

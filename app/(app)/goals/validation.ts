@@ -1,9 +1,12 @@
 import { isDay } from "@/app/utils/dates";
+import type { ProgressSource } from "@/app/utils/goals";
 
 export const GOAL_TITLE_MAX_LENGTH = 80;
 export const STAGE_TITLE_MAX_LENGTH = 80;
 export const UNIT_LABEL_MAX_LENGTH = 24;
 export const STAGE_TARGET_MAX = 10000;
+export const ENTRY_NOTE_MAX_LENGTH = 120;
+export const ENTRY_AMOUNT_MAX = 1000;
 
 export type TargetMode = "total" | "per-objective";
 
@@ -21,6 +24,7 @@ export type GoalDraft = {
   description: string;
   unitLabel: string;
   startsOn: string;
+  progressSource: ProgressSource;
   stages: StageDraft[];
   objectiveIds: string[];
 };
@@ -97,7 +101,7 @@ export function validateGoal(draft: GoalDraft): GoalErrors {
     else if (stageTitle.length > STAGE_TITLE_MAX_LENGTH) {
       stageErrors.title = `O nome pode ter no máximo ${STAGE_TITLE_MAX_LENGTH} caracteres.`;
     }
-    if (stage.mode === "per-objective") {
+    if (draft.progressSource === "checks" && stage.mode === "per-objective") {
       const targetError = validateObjectiveTargets(stage, draft.objectiveIds);
       if (targetError) stageErrors.target = targetError;
     } else if (parseTarget(stage.target) === null) {
@@ -107,7 +111,7 @@ export function validateGoal(draft: GoalDraft): GoalErrors {
     return stageErrors;
   });
 
-  if (draft.objectiveIds.length === 0) {
+  if (draft.progressSource === "checks" && draft.objectiveIds.length === 0) {
     errors.objectives = "Escolha pelo menos um objetivo para a meta.";
   }
 

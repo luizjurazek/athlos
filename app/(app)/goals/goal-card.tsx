@@ -11,7 +11,7 @@ import {
   type Pace,
 } from "@/app/utils/goals";
 import type { Goal } from "./data";
-import { formatCount } from "./format";
+import { formatCount, isMilestone, unitOf } from "./format";
 import { PacePill, StatusPill } from "./goal-pills";
 import styles from "./goals.module.css";
 
@@ -23,10 +23,15 @@ export type GoalCardData = {
   stageLabel: string;
   done: number;
   target: string;
+  targetCount: number;
+  /** Milestone stages show "Marco pendente" instead of "0 de 1". */
+  milestone: boolean;
   progress: number;
   expected?: number;
   objectives: string;
   remaining: string;
+  /** Set for active entry goals whose current stage already started: they get a +1 shortcut. */
+  quickEntry: { milestone: boolean } | null;
 };
 
 export function getCurrentStage(goal: Goal, today: string) {
@@ -53,14 +58,27 @@ export function toGoalCard(goal: Goal, today: string): GoalCardData {
         ? `Etapa única · até ${formatNumericDate(stage.dueOn)}`
         : `Etapa ${stage.position} de ${total} · ${stage.title} até ${formatNumericDate(stage.dueOn)}`,
     done: stage?.checksCount ?? 0,
-    target: stage ? formatCount(stage.targetCount, goal.unitLabel) : "",
+    target: stage ? formatCount(stage.targetCount, unitOf(goal)) : "",
+    targetCount: stage?.targetCount ?? 0,
+    milestone: stage ? isMilestone(goal, stage) && !stage.completed : false,
     progress: stage ? stage.checksCount / stage.targetCount : 0,
     expected: tracking ? getExpectedProgress(stage, today).fraction : undefined,
-    objectives: goal.objectives.map((objective) => objective.title).join(", "),
+    objectives:
+      goal.progressSource === "entries"
+        ? goal.objectives.length > 0
+          ? `Apoio: ${goal.objectives.map((objective) => objective.title).join(", ")}`
+          : ""
+        : goal.objectives.map((objective) => objective.title).join(", "),
+    quickEntry:
+      goal.progressSource === "entries" && tracking
+        ? { milestone: stage.targetCount === 1 }
+        : null,
     remaining:
       goal.status !== "active" || missing === 0
         ? ""
-        : `faltam ${missing} em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`,
+        : stage && isMilestone(goal, stage)
+          ? `até ${formatNumericDate(stage.dueOn)}`
+          : `faltam ${missing} em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`,
   };
 }
 
@@ -85,9 +103,13 @@ export function GoalCard({
         label={`${card.done} de ${card.target}`}
       />
       <span className={styles.cardFooter}>
-        <span>
-          <strong className={styles.cardCount}>{card.done}</strong> de {card.target}
-        </span>
+        {card.milestone ? (
+          <span>Marco pendente</span>
+        ) : (
+          <span>
+            <strong className={styles.cardCount}>{card.done}</strong> de {card.target}
+          </span>
+        )}
         <span className={styles.cardObjectives}>
           {footer === "objectives" ? card.objectives : card.remaining}
         </span>

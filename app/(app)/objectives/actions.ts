@@ -65,18 +65,19 @@ async function getLinkedGoalIds(supabase: Client, objectiveId: string) {
   return data.map((link) => link.goal_id);
 }
 
-// RN-18: a goal can never lose its last objective.
+// RN-18: a goal measured by checks can never lose its last objective (entry goals may have none).
 async function findGoalsOnlyFedBy(supabase: Client, objectiveId: string, goalIds: string[]) {
   if (goalIds.length === 0) return [];
   const { data, error } = await supabase
     .from("goal_objectives")
-    .select("goal_id, objective_id, goals ( title )")
+    .select("goal_id, objective_id, goals ( title, progress_source )")
     .in("goal_id", goalIds);
   if (error) throw error;
   return goalIds.flatMap((goalId) => {
     const links = data.filter((link) => link.goal_id === goalId);
     const onlyThis = links.every((link) => link.objective_id === objectiveId);
-    const title = links[0]?.goals?.title;
+    const goal = links[0]?.goals;
+    const title = goal?.progress_source === "checks" ? goal.title : null;
     return onlyThis && title ? [title] : [];
   });
 }
