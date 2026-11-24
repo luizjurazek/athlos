@@ -184,6 +184,41 @@ export type Database = {
           },
         ];
       };
+      objective_reschedules: {
+        Row: {
+          created_at: string;
+          from_day: string;
+          id: string;
+          objective_id: string;
+          to_day: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          from_day: string;
+          id?: string;
+          objective_id: string;
+          to_day: string;
+          user_id?: string;
+        };
+        Update: {
+          created_at?: string;
+          from_day?: string;
+          id?: string;
+          objective_id?: string;
+          to_day?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "objective_reschedules_objective_fkey";
+            columns: ["objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       objectives: {
         Row: {
           archived_at: string | null;
@@ -266,6 +301,15 @@ export type Database = {
       };
     };
     Functions: {
+      reschedule_objective: {
+        Args: {
+          from_day: string;
+          mark_done?: boolean;
+          objective_id: string;
+          to_day: string;
+        };
+        Returns: string;
+      };
       save_goal: {
         Args: { goal: Json; objective_ids: string[]; stages: Json };
         Returns: string;
