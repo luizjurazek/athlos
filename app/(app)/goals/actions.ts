@@ -2,10 +2,21 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getUserToday } from "@/app/utils/dates";
+import { getStageStatuses, hasStarted } from "@/app/utils/goals";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
-import { getGoal } from "./data";
-import { countErrors, parseTarget, validateGoal, type GoalDraft, type GoalErrors } from "./validation";
+import { getUserTimezone } from "../dashboard/day-objectives";
+import { getGoal, getReopenableStage, type Goal, type GoalStage } from "./data";
+import {
+  countErrors,
+  getObjectiveTargets,
+  parseTarget,
+  validateGoal,
+  type GoalDraft,
+  type GoalErrors,
+  type StageDraft,
+} from "./validation";
 
 export type GoalFormState = { error?: string; errors?: GoalErrors } | undefined;
 
@@ -21,6 +32,7 @@ function readDraft(formData: FormData): GoalDraft {
   const titles = readStrings(formData, "stage_title");
   const targets = readStrings(formData, "stage_target");
   const dueDates = readStrings(formData, "stage_due");
+  const objectiveIds = [...new Set(readStrings(formData, "objective_ids").filter(Boolean))];
   return {
     title: read("title"),
     description: read("description"),
@@ -30,8 +42,12 @@ function readDraft(formData: FormData): GoalDraft {
       title,
       target: targets[index] ?? "",
       dueOn: dueDates[index] ?? "",
+      mode: read(`stage_${index}_mode`) === "per-objective" ? "per-objective" : "total",
+      targets: Object.fromEntries(
+        objectiveIds.map((id) => [id, read(`stage_${index}_target_${id}`)]),
+      ),
     })),
-    objectiveIds: [...new Set(readStrings(formData, "objective_ids").filter(Boolean))],
+    objectiveIds,
   };
 }
 
@@ -64,11 +80,20 @@ export async function saveGoal(
       unit_label: draft.unitLabel.trim() || null,
       starts_on: draft.startsOn,
     },
-    stages: draft.stages.map((stage) => ({
-      title: stage.title.trim(),
-      target_count: parseTarget(stage.target),
-      due_on: stage.dueOn,
-    })),
+    stages: draft.stages.map((stage) => {
+      const targets = stageTargets(stage, draft.objectiveIds);
+      return {
+        title: stage.title.trim(),
+        target_count: targets
+          ? targets.reduce((total, target) => total + target.targetCount, 0)
+          : parseTarget(stage.target),
+        due_on: stage.dueOn,
+        targets: (targets ?? []).map((target) => ({
+          objective_id: target.objectiveId,
+          target_count: target.targetCount,
+        })),
+      };
+    }),
     objective_ids: draft.objectiveIds,
   });
 
@@ -84,19 +109,32 @@ export async function saveGoal(
   redirect(`/goals/${savedId}`);
 }
 
+function stageTargets(stage: StageDraft, objectiveIds: string[]) {
+  return stage.mode === "per-objective" ? getObjectiveTargets(stage, objectiveIds) : null;
+}
+
+function sameTargets(stage: GoalStage, submitted: StageDraft, objectiveIds: string[]) {
+  const targets = stageTargets(submitted, objectiveIds);
+  if (!stage.objectiveTargets) return !targets && parseTarget(submitted.target) === stage.targetCount;
+  if (!targets || targets.length !== stage.objectiveTargets.length) return false;
+  return stage.objectiveTargets.every((saved) =>
+    targets.some(
+      (target) =>
+        target.objectiveId === saved.objectiveId && target.targetCount === saved.targetCount,
+    ),
+  );
+}
+
 // Stages that already reached their target are frozen (doubt 2.1): same position, title, target
 // and deadline, and the goal start cannot move while the first stage is one of them.
-function checkCompletedStages(
-  current: NonNullable<Awaited<ReturnType<typeof getGoal>>>,
-  draft: GoalDraft,
-) {
+function checkCompletedStages(current: Goal, draft: GoalDraft) {
   for (const stage of current.stages) {
     if (!stage.completed) continue;
     const submitted = draft.stages[stage.position - 1];
     const unchanged =
       submitted &&
       submitted.title.trim() === stage.title &&
-      parseTarget(submitted.target) === stage.targetCount &&
+      sameTargets(stage, submitted, draft.objectiveIds) &&
       submitted.dueOn === stage.dueOn;
     if (!unchanged) {
       return `A etapa ${stage.position} já foi concluída e não pode ser alterada.`;
@@ -121,4 +159,100 @@ export async function abandonGoal(goalId: string): Promise<GoalFormState> {
     return { error: "Não foi possível abandonar a meta. Tente de novo." };
   }
   redirect("/goals");
+}
+
+async function loadGoalForUpdate(goalId: string) {
+  const user = await requireUser();
+  const supabase = createClient(await cookies());
+  const [goal, timezone] = await Promise.all([
+    getGoal(supabase, goalId).catch(() => null),
+    getUserTimezone(supabase, user.id),
+  ]);
+  return { supabase, goal, today: getUserToday(timezone) };
+}
+
+function getStartedCurrentStage(goal: Goal, today: string) {
+  const statuses = getStageStatuses(goal.stages, today);
+  const current = goal.stages[statuses.indexOf("current")];
+  return current && hasStarted(current, today) ? current : null;
+}
+
+const UPDATE_ERROR = "Não foi possível atualizar a meta. Tente de novo.";
+
+/** Closes the current stage by hand, even short of its target (the next one starts tomorrow). */
+export async function completeStage(goalId: string): Promise<GoalFormState> {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  if (!goal || goal.status !== "active") return { error: "Esta meta não está ativa." };
+  const stage = getStartedCurrentStage(goal, today);
+  if (!stage) return { error: "Nenhuma etapa em andamento para concluir." };
+
+  const { error } = await supabase
+    .from("goal_stages")
+    .update({ completed_manually_on: today, completed_at: new Date().toISOString() })
+    .eq("id", stage.id);
+  if (error) {
+    console.error("Failed to complete stage", error);
+    return { error: UPDATE_ERROR };
+  }
+  redirect(`/goals/${goalId}`);
+}
+
+/** Closes the whole goal by hand; the stage in progress is closed with it. */
+export async function completeGoal(goalId: string): Promise<GoalFormState> {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  if (!goal || goal.status !== "active") return { error: "Esta meta não está ativa." };
+
+  const stage = getStartedCurrentStage(goal, today);
+  if (stage) {
+    const { error } = await supabase
+      .from("goal_stages")
+      .update({ completed_manually_on: today, completed_at: new Date().toISOString() })
+      .eq("id", stage.id);
+    if (error) {
+      console.error("Failed to complete stage", error);
+      return { error: UPDATE_ERROR };
+    }
+  }
+  const { error } = await supabase
+    .from("goals")
+    .update({ completed_manually_on: today, status: "completed" })
+    .eq("id", goalId);
+  if (error) {
+    console.error("Failed to complete goal", error);
+    return { error: UPDATE_ERROR };
+  }
+  redirect(`/goals/${goalId}`);
+}
+
+export async function reopenStage(goalId: string): Promise<GoalFormState> {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  const stage = goal ? getReopenableStage(goal, today) : null;
+  if (!stage) return { error: "Esta etapa não pode mais ser reaberta." };
+
+  const { error } = await supabase
+    .from("goal_stages")
+    .update({ completed_manually_on: null, completed_at: null })
+    .eq("id", stage.id);
+  if (error) {
+    console.error("Failed to reopen stage", error);
+    return { error: UPDATE_ERROR };
+  }
+  redirect(`/goals/${goalId}`);
+}
+
+export async function reopenGoal(goalId: string): Promise<GoalFormState> {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  if (!goal?.completedManuallyOn || goal.dueOn < today) {
+    return { error: "Esta meta não pode mais ser reaberta." };
+  }
+  // The stored status is recomputed from the stages on the next read.
+  const { error } = await supabase
+    .from("goals")
+    .update({ completed_manually_on: null, status: "active" })
+    .eq("id", goalId);
+  if (error) {
+    console.error("Failed to reopen goal", error);
+    return { error: UPDATE_ERROR };
+  }
+  redirect(`/goals/${goalId}`);
 }

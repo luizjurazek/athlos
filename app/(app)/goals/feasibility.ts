@@ -1,16 +1,7 @@
 import { isDay } from "@/app/utils/dates";
 import { countScheduledDays } from "@/app/utils/goals";
-import { formatWeekdays } from "@/app/utils/weekdays";
 
-type ScheduledObjective = { title: string; weekdays: number[] };
-
-export function describeObjectives(objectives: ScheduledObjective[]) {
-  const parts = objectives.map(
-    (objective) => `${objective.title} (${formatWeekdays(objective.weekdays).toLowerCase()})`,
-  );
-  if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} e ${parts.at(-1)}`;
-}
+type ScheduledObjective = { weekdays: number[] };
 
 /**
  * RN-19 preview for the form: checks already counted in the window plus every scheduled
@@ -32,4 +23,29 @@ export function getStageCapacity({
   if (!isDay(windowStart) || !isDay(dueOn) || dueOn < today) return null;
   const from = windowStart > today ? windowStart : today;
   return doneInWindow + countScheduledDays(objectives, from, dueOn);
+}
+
+/**
+ * Per-objective version of getStageCapacity: `doneByObjective` holds checks already counted in the
+ * window for each objective (only known when the stage was saved with per-objective targets).
+ */
+export function getObjectiveCapacities({
+  objectives,
+  windowStart,
+  dueOn,
+  today,
+  doneByObjective,
+}: {
+  objectives: (ScheduledObjective & { id: string })[];
+  windowStart: string;
+  dueOn: string;
+  today: string;
+  doneByObjective: Map<string, number>;
+}) {
+  if (!isDay(windowStart) || !isDay(dueOn) || dueOn < today) return null;
+  const from = windowStart > today ? windowStart : today;
+  return objectives.map((objective) => ({
+    objectiveId: objective.id,
+    capacity: (doneByObjective.get(objective.id) ?? 0) + countScheduledDays([objective], from, dueOn),
+  }));
 }

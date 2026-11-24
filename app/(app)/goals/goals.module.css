@@ -52,7 +52,8 @@
     color var(--duration-fast) var(--ease-standard);
 }
 
-.tab[aria-selected="true"] {
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"] {
   background: var(--color-bg);
   color: var(--color-text);
   box-shadow: var(--shadow-sm);
@@ -244,6 +245,29 @@
   font-size: var(--text-footnote);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.objectiveProgress {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+}
+
+.objectiveProgress li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.objectiveProgress li > span:first-child {
+  color: var(--color-text-muted);
+}
+
+.objectiveProgress li[data-done="true"] > span:last-child {
+  color: var(--color-success);
 }
 
 .stats {
@@ -546,8 +570,12 @@
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background: var(--color-success-bg);
+  background: var(--color-surface-muted);
   font-size: var(--text-footnote);
+}
+
+.capacity[data-feasible="true"] {
+  background: var(--color-success-bg);
 }
 
 .capacity[data-feasible="false"] {
@@ -559,14 +587,91 @@
   width: var(--space-5);
   height: var(--space-5);
   fill: none;
-  stroke: var(--color-success);
+  stroke: var(--color-text-muted);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
+.capacity[data-feasible="true"] svg {
+  stroke: var(--color-success);
+}
+
 .capacity[data-feasible="false"] svg {
   stroke: var(--color-warning);
+}
+
+.tab:disabled {
+  cursor: default;
+}
+
+.stageField[data-wide="true"] {
+  grid-column: 1 / -1;
+}
+
+.objectiveTargets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.targetRow {
+  gap: var(--space-3);
+}
+
+.targetName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.targetGroup {
+  flex: 0 0 calc(var(--space-12) * 2.5);
+  background: var(--color-bg);
+}
+
+.targetGroup input {
+  min-width: 0;
+  padding: 0 var(--space-3);
+}
+
+.capacityBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.capacityList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.capacityList li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.capacityList li > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.capacityList li > span:last-child {
+  flex-shrink: 0;
+}
+
+.capacityList li[data-short="true"] > span:last-child {
+  font-weight: var(--font-weight-strong);
 }
 
 .addStage {
@@ -677,6 +782,11 @@
   .tabs {
     align-self: flex-start;
     min-width: 420px;
+  }
+
+  .modeTabs {
+    align-self: stretch;
+    min-width: 0;
   }
 
   .cards {

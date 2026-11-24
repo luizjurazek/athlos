@@ -1,6 +1,11 @@
 import type { createClient } from "@/app/utils/supabase/server";
 import type { Enums } from "@/app/utils/supabase/database.types";
-import { getGoalStatus } from "@/app/utils/goals";
+import {
+  getEffectiveCount,
+  getGoalStatus,
+  isStageCompleted,
+  type ObjectiveTarget,
+} from "@/app/utils/goals";
 
 type Client = ReturnType<typeof createClient>;
 
@@ -23,8 +28,10 @@ export type GoalStage = {
   dueOn: string;
   windowStart: string;
   checksCount: number;
+  objectiveTargets?: ObjectiveTarget[];
   completed: boolean;
   completedAt: string | null;
+  completedManuallyOn: string | null;
 };
 
 export type Goal = {
@@ -35,13 +42,14 @@ export type Goal = {
   startsOn: string;
   dueOn: string;
   status: GoalStatus;
+  completedManuallyOn: string | null;
   stages: GoalStage[];
   objectives: GoalObjective[];
 };
 
 const GOAL_SELECT = `
-  id, title, description, unit_label, starts_on, due_on, status,
-  goal_stages ( id, position, title, target_count, due_on, completed_at ),
+  id, title, description, unit_label, starts_on, due_on, status, completed_manually_on,
+  goal_stages ( id, position, title, target_count, due_on, completed_at, completed_manually_on ),
   goal_objectives ( objectives ( id, title, color, icon, weekdays, archived_at ) )
 `;
 
@@ -50,16 +58,36 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
   let progressQuery = supabase
     .from("goal_stage_progress")
     .select("stage_id, window_start, checks_count");
+  let targetsQuery = supabase
+    .from("goal_stage_objective_progress")
+    .select("stage_id, objective_id, target_count, checks_count");
   if (goalId) {
     goalsQuery = goalsQuery.eq("id", goalId);
     progressQuery = progressQuery.eq("goal_id", goalId);
+    targetsQuery = targetsQuery.eq("goal_id", goalId);
   }
 
-  const [goalsResult, progressResult] = await Promise.all([goalsQuery, progressQuery]);
+  const [goalsResult, progressResult, targetsResult] = await Promise.all([
+    goalsQuery,
+    progressQuery,
+    targetsQuery,
+  ]);
   if (goalsResult.error) throw goalsResult.error;
   if (progressResult.error) throw progressResult.error;
+  if (targetsResult.error) throw targetsResult.error;
 
   const progress = new Map(progressResult.data.map((row) => [row.stage_id, row]));
+  const targetsByStage = new Map<string, ObjectiveTarget[]>();
+  for (const row of targetsResult.data) {
+    if (!row.stage_id || !row.objective_id) continue;
+    const list = targetsByStage.get(row.stage_id) ?? [];
+    list.push({
+      objectiveId: row.objective_id,
+      targetCount: row.target_count ?? 0,
+      checksCount: row.checks_count ?? 0,
+    });
+    targetsByStage.set(row.stage_id, list);
+  }
 
   return goalsResult.data.map((goal) => ({
     id: goal.id,
@@ -69,20 +97,28 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
     startsOn: goal.starts_on,
     dueOn: goal.due_on,
     status: goal.status,
+    completedManuallyOn: goal.completed_manually_on,
     stages: goal.goal_stages
       .toSorted((a, b) => a.position - b.position)
       .map((stage) => {
         const stageProgress = progress.get(stage.id);
-        const checksCount = stageProgress?.checks_count ?? 0;
+        const objectiveTargets = targetsByStage.get(stage.id);
+        const base = {
+          windowStart: stageProgress?.window_start ?? goal.starts_on,
+          dueOn: stage.due_on,
+          targetCount: stage.target_count,
+          checksCount: objectiveTargets
+            ? getEffectiveCount(objectiveTargets)
+            : (stageProgress?.checks_count ?? 0),
+          objectiveTargets,
+          completedManuallyOn: stage.completed_manually_on,
+        };
         return {
+          ...base,
           id: stage.id,
           position: stage.position,
           title: stage.title,
-          targetCount: stage.target_count,
-          dueOn: stage.due_on,
-          windowStart: stageProgress?.window_start ?? goal.starts_on,
-          checksCount,
-          completed: checksCount >= stage.target_count,
+          completed: isStageCompleted(base),
           completedAt: stage.completed_at,
         };
       }),
@@ -99,6 +135,18 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
   }));
 }
 
+/**
+ * The latest stage closed by hand can be reopened while its deadline has not passed, as long as
+ * no later stage is completed and the goal itself was not closed by hand.
+ */
+export function getReopenableStage(goal: Goal, today: string) {
+  if (goal.completedManuallyOn || goal.status === "abandoned") return null;
+  const lastCompleted = goal.stages.findLastIndex((stage) => stage.completed);
+  const stage = goal.stages[lastCompleted];
+  if (!stage?.completedManuallyOn || stage.dueOn < today) return null;
+  return stage;
+}
+
 export async function getGoal(supabase: Client, goalId: string) {
   const [goal] = await getGoals(supabase, goalId);
   return goal ?? null;
@@ -111,7 +159,7 @@ export async function getGoal(supabase: Client, goalId: string) {
 export async function syncGoalStatuses(supabase: Client, goals: Goal[], today: string) {
   const writes: PromiseLike<{ error: unknown }>[] = [];
   const synced = goals.map((goal) => {
-    const status = getGoalStatus(goal.stages, today, goal.status);
+    const status = getGoalStatus(goal.stages, today, goal.status, goal.completedManuallyOn);
     if (status !== goal.status) {
       writes.push(supabase.from("goals").update({ status }).eq("id", goal.id));
     }

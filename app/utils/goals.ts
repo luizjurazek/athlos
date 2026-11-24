@@ -1,11 +1,19 @@
 import { CHECK_BACKFILL_DAYS } from "./checks";
 import { addDays, diffDays, getWeekday } from "./dates";
 
+export type ObjectiveTarget = { objectiveId: string; targetCount: number; checksCount: number };
+
+/**
+ * With `objectiveTargets`, `targetCount` is their sum and `checksCount` the effective count
+ * (see getEffectiveCount), so bars and pace work the same in both modes.
+ */
 export type StageProgress = {
   windowStart: string;
   dueOn: string;
   targetCount: number;
   checksCount: number;
+  objectiveTargets?: ObjectiveTarget[];
+  completedManuallyOn?: string | null;
 };
 
 export type ScheduledObjective = { id?: string; weekdays: number[] };
@@ -19,7 +27,22 @@ export type Pace = "ahead" | "on-track" | "slightly-behind" | "behind";
 const maxDay = (a: string, b: string) => (a > b ? a : b);
 const minDay = (a: string, b: string) => (a < b ? a : b);
 
+export function hasObjectiveTargets(
+  stage: StageProgress,
+): stage is StageProgress & { objectiveTargets: ObjectiveTarget[] } {
+  return Boolean(stage.objectiveTargets?.length);
+}
+
+/** Extra checks of one objective never cover what another one is missing. */
+export function getEffectiveCount(targets: ObjectiveTarget[]) {
+  return targets.reduce((total, target) => total + Math.min(target.checksCount, target.targetCount), 0);
+}
+
 export function isStageCompleted(stage: StageProgress) {
+  if (stage.completedManuallyOn) return true;
+  if (hasObjectiveTargets(stage)) {
+    return stage.objectiveTargets.every((target) => target.checksCount >= target.targetCount);
+  }
   return stage.checksCount >= stage.targetCount;
 }
 
@@ -39,8 +62,10 @@ export function getGoalStatus(
   stages: StageProgress[],
   today: string,
   stored: GoalStatus,
+  completedManuallyOn: string | null = null,
 ): GoalStatus {
   if (stored === "abandoned") return stored;
+  if (completedManuallyOn) return "completed";
   const last = stages.at(-1);
   if (!last) return "active";
   if (isStageCompleted(last)) return "completed";
@@ -86,9 +111,17 @@ export function countScheduledDays(objectives: ScheduledObjective[], from: strin
   return total;
 }
 
+type ObjectiveFeasibility = {
+  objectiveId: string;
+  missing: number;
+  available: number;
+  feasible: boolean;
+};
+
 /**
  * RN-19 for a stage that already started: scheduled occurrences still markable (unchecked days
  * inside the backfill window plus every day from tomorrow on) against what is left of the target.
+ * With per-objective targets each objective is checked on its own and all of them must fit.
  * `checks` must hold the linked objectives' checks from the backfill start through today.
  */
 export function getStageFeasibility({
@@ -102,33 +135,62 @@ export function getStageFeasibility({
   checks: { objectiveId: string; day: string }[];
   today: string;
 }) {
-  const missing = Math.max(0, stage.targetCount - stage.checksCount);
   const checked = new Set(checks.map((check) => `${check.objectiveId}:${check.day}`));
-
-  let available = 0;
   const backfillStart = maxDay(stage.windowStart, addDays(today, -CHECK_BACKFILL_DAYS));
   const lastMarkable = minDay(today, stage.dueOn);
-  for (let day = backfillStart; day <= lastMarkable; day = addDays(day, 1)) {
-    const weekday = getWeekday(day);
-    for (const objective of objectives) {
-      if (objective.weekdays.includes(weekday) && !checked.has(`${objective.id}:${day}`)) {
-        available += 1;
+  const tomorrow = maxDay(addDays(today, 1), stage.windowStart);
+
+  function countAvailable(scheduled: Required<ScheduledObjective>[]) {
+    let available = 0;
+    for (let day = backfillStart; day <= lastMarkable; day = addDays(day, 1)) {
+      const weekday = getWeekday(day);
+      for (const objective of scheduled) {
+        if (objective.weekdays.includes(weekday) && !checked.has(`${objective.id}:${day}`)) {
+          available += 1;
+        }
       }
     }
+    return available + countScheduledDays(scheduled, tomorrow, stage.dueOn);
   }
-  const tomorrow = maxDay(addDays(today, 1), stage.windowStart);
-  available += countScheduledDays(objectives, tomorrow, stage.dueOn);
 
   const weeks = Math.max(1, diffDays(maxDay(today, stage.windowStart), stage.dueOn) + 1) / 7;
+
+  if (!hasObjectiveTargets(stage)) {
+    const missing = Math.max(0, stage.targetCount - stage.checksCount);
+    const available = countAvailable(objectives);
+    return { missing, available, feasible: missing <= available, perWeek: missing / weeks, perObjective: [] };
+  }
+
+  const perObjective: ObjectiveFeasibility[] = stage.objectiveTargets.map((target) => {
+    const objective = objectives.find((item) => item.id === target.objectiveId);
+    const missing = Math.max(0, target.targetCount - target.checksCount);
+    const available = objective ? countAvailable([objective]) : 0;
+    return { objectiveId: target.objectiveId, missing, available, feasible: missing <= available };
+  });
+  const missing = perObjective.reduce((total, item) => total + item.missing, 0);
   return {
     missing,
-    available,
-    feasible: missing <= available,
+    available: perObjective.reduce((total, item) => total + item.available, 0),
+    feasible: perObjective.every((item) => item.feasible),
     perWeek: missing / weeks,
+    perObjective,
   };
 }
 
 /** RN-19 for a stage that has not started: every occurrence in its window against the target. */
-export function getUpcomingCapacity(stage: StageProgress, objectives: ScheduledObjective[]) {
-  return countScheduledDays(objectives, stage.windowStart, stage.dueOn);
+export function getUpcomingCapacity(stage: StageProgress, objectives: Required<ScheduledObjective>[]) {
+  if (!hasObjectiveTargets(stage)) {
+    const capacity = countScheduledDays(objectives, stage.windowStart, stage.dueOn);
+    return { capacity, feasible: capacity >= stage.targetCount, perObjective: [] };
+  }
+  const perObjective = stage.objectiveTargets.map((target) => {
+    const objective = objectives.find((item) => item.id === target.objectiveId);
+    const capacity = objective ? countScheduledDays([objective], stage.windowStart, stage.dueOn) : 0;
+    return { objectiveId: target.objectiveId, capacity, feasible: capacity >= target.targetCount };
+  });
+  return {
+    capacity: perObjective.reduce((total, item) => total + item.capacity, 0),
+    feasible: perObjective.every((item) => item.feasible),
+    perObjective,
+  };
 }

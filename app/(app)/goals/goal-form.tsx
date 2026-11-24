@@ -7,11 +7,12 @@ import { ObjectiveBadge } from "../objectives/objective-badge";
 import ui from "../objectives/objectives.module.css";
 import type { GoalFormState } from "./actions";
 import type { Goal, GoalObjective } from "./data";
-import { describeObjectives, getStageCapacity } from "./feasibility";
+import { getObjectiveCapacities, getStageCapacity } from "./feasibility";
 import { DEFAULT_UNIT_LABEL, formatCount } from "./format";
 import {
   countErrors,
   FIRST_STAGE_ERROR,
+  getObjectiveTargets,
   GOAL_TITLE_MAX_LENGTH,
   parseTarget,
   STAGE_ORDER_ERROR,
@@ -21,6 +22,7 @@ import {
   validateGoal,
   validateStageDates,
   type GoalDraft,
+  type TargetMode,
 } from "./validation";
 import styles from "./goals.module.css";
 
@@ -29,8 +31,15 @@ type StageState = {
   title: string;
   target: string;
   dueOn: string;
+  mode: TargetMode;
+  targets: Record<string, string>;
   locked: boolean;
-  saved?: { windowStart: string; dueOn: string; checksCount: number };
+  saved?: {
+    windowStart: string;
+    dueOn: string;
+    checksCount: number;
+    checksByObjective: Map<string, number>;
+  };
 };
 
 type GoalFormProps = {
@@ -43,10 +52,23 @@ type GoalFormProps = {
 
 const DUE_SHORTCUTS = [3, 6, 12];
 
+const TARGET_MODES: { id: TargetMode; label: string }[] = [
+  { id: "per-objective", label: "Por objetivo" },
+  { id: "total", label: "Alvo total" },
+];
+
 let nextKey = 0;
 
 function emptyStage(): StageState {
-  return { key: nextKey++, title: "", target: "", dueOn: "", locked: false };
+  return {
+    key: nextKey++,
+    title: "",
+    target: "",
+    dueOn: "",
+    mode: "per-objective",
+    targets: {},
+    locked: false,
+  };
 }
 
 function initialStages(goal?: Goal): StageState[] {
@@ -56,8 +78,19 @@ function initialStages(goal?: Goal): StageState[] {
     title: stage.title,
     target: String(stage.targetCount),
     dueOn: stage.dueOn,
+    mode: stage.objectiveTargets ? "per-objective" : "total",
+    targets: Object.fromEntries(
+      (stage.objectiveTargets ?? []).map((target) => [target.objectiveId, String(target.targetCount)]),
+    ),
     locked: stage.completed,
-    saved: { windowStart: stage.windowStart, dueOn: stage.dueOn, checksCount: stage.checksCount },
+    saved: {
+      windowStart: stage.windowStart,
+      dueOn: stage.dueOn,
+      checksCount: stage.checksCount,
+      checksByObjective: new Map(
+        (stage.objectiveTargets ?? []).map((target) => [target.objectiveId, target.checksCount]),
+      ),
+    },
   }));
 }
 
@@ -88,15 +121,21 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
     );
   }
 
-  // Swaps only title and target: each position keeps its deadline so the dates stay in order.
+  // Swaps only title and targets: each position keeps its deadline so the dates stay in order.
   function moveStage(index: number, direction: -1 | 1) {
     setStages((current) => {
       const next = [...current];
       const other = index + direction;
       const a = next[index];
       const b = next[other];
-      next[index] = { ...a, title: b.title, target: b.target };
-      next[other] = { ...b, title: a.title, target: a.target };
+      const swap = (stage: StageState) => ({
+        title: stage.title,
+        target: stage.target,
+        mode: stage.mode,
+        targets: stage.targets,
+      });
+      next[index] = { ...a, ...swap(b) };
+      next[other] = { ...b, ...swap(a) };
       return next;
     });
   }
@@ -251,29 +290,58 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                     </div>
                     {stageErrors?.title && <p className={styles.fieldError}>{stageErrors.title}</p>}
 
+                    <input type="hidden" name={`stage_${index}_mode`} value={stage.mode} />
+                    {(stage.mode === "per-objective" || selectedObjectives.length > 1) && (
+                      <div
+                        className={`${styles.tabs} ${styles.modeTabs}`}
+                        role="group"
+                        aria-label={`Alvo da etapa ${index + 1}`}
+                      >
+                        {TARGET_MODES.map((mode) => (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            className={styles.tab}
+                            aria-pressed={stage.mode === mode.id}
+                            disabled={stage.locked}
+                            onClick={() => updateStage(index, { mode: mode.id })}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     <div className={styles.stageFields}>
-                      <label className={styles.stageField}>
-                        <span className={styles.label}>Alvo</span>
-                        <span
-                          className={`${ui.group} ${styles.suffixGroup}`}
-                          data-invalid={Boolean(stageErrors?.target) || undefined}
-                        >
-                          <input
-                            className={`${ui.input} ${styles.targetInput}`}
-                            name="stage_target"
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            max={STAGE_TARGET_MAX}
-                            step={1}
-                            value={stage.target}
-                            readOnly={stage.locked}
-                            onChange={(event) => updateStage(index, { target: event.target.value })}
-                          />
-                          <span className={styles.suffix}>{unit}</span>
-                        </span>
-                      </label>
-                      <label className={styles.stageField}>
+                      {stage.mode === "per-objective" ? (
+                        <input type="hidden" name="stage_target" value="" />
+                      ) : (
+                        <label className={styles.stageField}>
+                          <span className={styles.label}>Alvo</span>
+                          <span
+                            className={`${ui.group} ${styles.suffixGroup}`}
+                            data-invalid={Boolean(stageErrors?.target) || undefined}
+                          >
+                            <input
+                              className={`${ui.input} ${styles.targetInput}`}
+                              name="stage_target"
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              max={STAGE_TARGET_MAX}
+                              step={1}
+                              value={stage.target}
+                              readOnly={stage.locked}
+                              onChange={(event) => updateStage(index, { target: event.target.value })}
+                            />
+                            <span className={styles.suffix}>{unit}</span>
+                          </span>
+                        </label>
+                      )}
+                      <label
+                        className={styles.stageField}
+                        data-wide={stage.mode === "per-objective" || undefined}
+                      >
                         <span className={styles.label}>Prazo</span>
                         <span
                           className={ui.group}
@@ -290,6 +358,19 @@ export function GoalForm({ action, goal, objectives, today, submitLabel }: GoalF
                         </span>
                       </label>
                     </div>
+
+                    {stage.mode === "per-objective" && (
+                      <ObjectiveTargets
+                        stage={stage}
+                        index={index}
+                        objectives={selectedObjectives}
+                        unit={unit}
+                        invalid={Boolean(stageErrors?.target)}
+                        onChange={(objectiveId, value) =>
+                          updateStage(index, { targets: { ...stage.targets, [objectiveId]: value } })
+                        }
+                      />
+                    )}
                     {stageErrors?.target && <p className={styles.fieldError}>{stageErrors.target}</p>}
                     {dueError && (
                       <p className={styles.fieldError} role="alert">
@@ -454,6 +535,69 @@ function IconButton({
   );
 }
 
+function ObjectiveTargets({
+  stage,
+  index,
+  objectives,
+  unit,
+  invalid,
+  onChange,
+}: {
+  stage: StageState;
+  index: number;
+  objectives: GoalObjective[];
+  unit: string;
+  invalid: boolean;
+  onChange: (objectiveId: string, value: string) => void;
+}) {
+  if (objectives.length === 0) {
+    return <p className={styles.fieldHint}>Escolha os objetivos da meta para definir os alvos.</p>;
+  }
+  const total = getObjectiveTargets(
+    stage,
+    objectives.map((objective) => objective.id),
+  ).reduce((sum, target) => sum + target.targetCount, 0);
+
+  return (
+    <div className={styles.objectiveTargets}>
+      <ul className={`${ui.list} ${styles.targetList}`}>
+        {objectives.map((objective) => (
+          <li key={objective.id}>
+            <label className={`${ui.row} ${styles.targetRow}`}>
+              <ObjectiveBadge color={objective.color} icon={objective.icon} />
+              <span className={`${ui.rowTitle} ${styles.targetName}`}>{objective.title}</span>
+              <span
+                className={`${ui.group} ${styles.suffixGroup} ${styles.targetGroup}`}
+                data-invalid={invalid || undefined}
+              >
+                <input
+                  className={`${ui.input} ${styles.targetInput}`}
+                  name={`stage_${index}_target_${objective.id}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={STAGE_TARGET_MAX}
+                  step={1}
+                  placeholder="0"
+                  aria-label={`Alvo de ${objective.title} na etapa ${index + 1}`}
+                  value={stage.targets[objective.id] ?? ""}
+                  readOnly={stage.locked}
+                  onChange={(event) => onChange(objective.id, event.target.value)}
+                />
+                <span className={styles.suffix}>{unit}</span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.fieldHint}>
+        Total: {formatCount(total, unit)}. A etapa só conclui quando cada objetivo bater o próprio alvo;
+        objetivo sem alvo não conta nesta etapa.
+      </p>
+    </div>
+  );
+}
+
 function Capacity({
   stage,
   windowStart,
@@ -468,39 +612,89 @@ function Capacity({
   if (objectives.length === 0) return null;
   const sameWindow =
     stage.saved?.windowStart === windowStart && stage.saved?.dueOn === stage.dueOn;
-  const capacity = getStageCapacity({
+  const perObjective = getObjectiveCapacities({
     objectives,
     windowStart,
     dueOn: stage.dueOn,
     today,
-    doneInWindow: sameWindow ? (stage.saved?.checksCount ?? 0) : 0,
+    doneByObjective: sameWindow ? (stage.saved?.checksByObjective ?? new Map()) : new Map(),
   });
-  const target = parseTarget(stage.target);
-  if (capacity === null || target === null) return null;
-
-  const feasible = capacity >= target;
-  const who = describeObjectives(objectives);
+  if (perObjective === null) return null;
   const until = formatDayMonth(stage.dueOn);
+
+  let feasible: boolean | undefined;
+  let summary: string;
+  const rows = objectives.map((objective, i) => {
+    const { capacity } = perObjective[i];
+    const target =
+      stage.mode === "per-objective" ? parseTarget(stage.targets[objective.id] ?? "") : null;
+    return { objective, capacity, target, short: target !== null && capacity < target };
+  });
+
+  if (stage.mode === "per-objective") {
+    const withTarget = rows.filter((row) => row.target !== null);
+    if (withTarget.length === 0) {
+      summary = `Dias programados até ${until}:`;
+    } else {
+      feasible = withTarget.every((row) => !row.short);
+      summary = feasible
+        ? `Todos os alvos cabem nos dias programados até ${until}.`
+        : `Nem todos os alvos cabem nos dias programados até ${until}. Dá para salvar mesmo assim.`;
+    }
+  } else {
+    const capacity = getStageCapacity({
+      objectives,
+      windowStart,
+      dueOn: stage.dueOn,
+      today,
+      doneInWindow: sameWindow ? (stage.saved?.checksCount ?? 0) : 0,
+    });
+    const target = parseTarget(stage.target);
+    if (capacity === null || target === null) {
+      summary = `Dias programados até ${until}:`;
+    } else {
+      feasible = capacity >= target;
+      summary = feasible
+        ? `Você terá até ${capacity} dias até ${until}. Alvo ${target}.`
+        : `Você terá no máximo ${capacity} dias até ${until}, menos que o alvo de ${target}. Dá para salvar mesmo assim.`;
+    }
+  }
+
   return (
-    <p className={styles.capacity} data-feasible={feasible}>
+    <div className={styles.capacity} data-feasible={feasible}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        {feasible ? (
+        {feasible === false ? (
+          <>
+            <path d="M12 3 2 20h20L12 3Z" />
+            <path d="M12 10v4M12 17v.01" />
+          </>
+        ) : feasible ? (
           <>
             <circle cx="12" cy="12" r="9" />
             <path d="m8 12 3 3 5-6" />
           </>
         ) : (
           <>
-            <path d="M12 3 2 20h20L12 3Z" />
-            <path d="M12 10v4M12 17v.01" />
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
           </>
         )}
       </svg>
-      <span>
-        {feasible
-          ? `Com ${who} você terá até ${capacity} dias até ${until}. Alvo ${target}.`
-          : `Com ${who} você terá no máximo ${capacity} dias até ${until}, menos que o alvo de ${target}. Dá para salvar mesmo assim.`}
-      </span>
-    </p>
+      <div className={styles.capacityBody}>
+        <p>{summary}</p>
+        <ul className={styles.capacityList}>
+          {rows.map((row) => (
+            <li key={row.objective.id} data-short={row.short || undefined}>
+              <span>{row.objective.title}</span>
+              <span>
+                {row.capacity} {row.capacity === 1 ? "dia" : "dias"}
+                {row.target !== null &&
+                  (row.short ? ` · alvo ${row.target} não cabe` : ` · alvo ${row.target}`)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
