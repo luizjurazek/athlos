@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SubmitButton } from "@/app/components/SubmitButton";
 import type { FormState } from "./actions";
 import { Feedback } from "./objective-form";
 import styles from "./objectives.module.css";
@@ -26,9 +27,12 @@ export function ObjectiveActionsPanel({
       <Feedback state={deleteState} />
       <div className={`${styles.list} ${styles.actionsList}`}>
         <form action={archived ? unarchiveAction : archiveAction}>
-          <button className={styles.rowButton} type="submit">
+          <SubmitButton
+            className={styles.rowButton}
+            pendingLabel={archived ? "Desarquivando..." : "Arquivando..."}
+          >
             {archived ? "Desarquivar objetivo" : "Arquivar objetivo"}
-          </button>
+          </SubmitButton>
         </form>
         {confirmingDelete ? (
           <form action={deleteFormAction} className={styles.confirmRow}>

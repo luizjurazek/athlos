@@ -78,7 +78,12 @@
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
-.logout:active {
+.logout:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.logout:active:not(:disabled) {
   background: var(--color-surface-muted);
 }
 

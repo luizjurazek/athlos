@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { LoadingStatus, SkeletonList } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { logout } from "@/app/(auth)/actions";
+import { SubmitButton } from "@/app/components/SubmitButton";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
@@ -35,9 +36,9 @@ export default function SettingsPage() {
           </section>
           <form action={logout} className={styles.section}>
             <div className={styles.group}>
-              <button className={styles.logout} type="submit">
+              <SubmitButton className={styles.logout} pendingLabel="Saindo...">
                 Sair
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </div>
