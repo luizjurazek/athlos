@@ -39,6 +39,44 @@ export type Database = {
   };
   public: {
     Tables: {
+      goal_entries: {
+        Row: {
+          amount: number;
+          created_at: string;
+          day: string;
+          goal_id: string;
+          id: string;
+          note: string | null;
+          user_id: string;
+        };
+        Insert: {
+          amount?: number;
+          created_at?: string;
+          day: string;
+          goal_id: string;
+          id?: string;
+          note?: string | null;
+          user_id?: string;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          day?: string;
+          goal_id?: string;
+          id?: string;
+          note?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "goal_entries_goal_fkey";
+            columns: ["goal_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "goals";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       goal_objectives: {
         Row: {
           goal_id: string;
@@ -162,6 +200,7 @@ export type Database = {
           description: string | null;
           due_on: string;
           id: string;
+          progress_source: Database["public"]["Enums"]["goal_progress_source"];
           starts_on: string;
           status: Database["public"]["Enums"]["goal_status"];
           title: string;
@@ -175,6 +214,7 @@ export type Database = {
           description?: string | null;
           due_on: string;
           id?: string;
+          progress_source?: Database["public"]["Enums"]["goal_progress_source"];
           starts_on: string;
           status?: Database["public"]["Enums"]["goal_status"];
           title: string;
@@ -188,6 +228,7 @@ export type Database = {
           description?: string | null;
           due_on?: string;
           id?: string;
+          progress_source?: Database["public"]["Enums"]["goal_progress_source"];
           starts_on?: string;
           status?: Database["public"]["Enums"]["goal_status"];
           title?: string;
@@ -372,6 +413,7 @@ export type Database = {
       };
     };
     Enums: {
+      goal_progress_source: "checks" | "entries";
       goal_status: "active" | "completed" | "expired" | "abandoned";
     };
     CompositeTypes: {
@@ -503,6 +545,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      goal_progress_source: ["checks", "entries"],
       goal_status: ["active", "completed", "expired", "abandoned"],
     },
   },
