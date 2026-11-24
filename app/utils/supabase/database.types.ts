@@ -72,9 +72,49 @@ export type Database = {
           },
         ];
       };
+      goal_stage_targets: {
+        Row: {
+          goal_id: string;
+          objective_id: string;
+          stage_id: string;
+          target_count: number;
+          user_id: string;
+        };
+        Insert: {
+          goal_id: string;
+          objective_id: string;
+          stage_id: string;
+          target_count: number;
+          user_id?: string;
+        };
+        Update: {
+          goal_id?: string;
+          objective_id?: string;
+          stage_id?: string;
+          target_count?: number;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "goal_stage_targets_stage_fkey";
+            columns: ["stage_id", "goal_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "goal_stages";
+            referencedColumns: ["id", "goal_id", "user_id"];
+          },
+          {
+            foreignKeyName: "goal_stage_targets_link_fkey";
+            columns: ["goal_id", "objective_id"];
+            isOneToOne: false;
+            referencedRelation: "goal_objectives";
+            referencedColumns: ["goal_id", "objective_id"];
+          },
+        ];
+      };
       goal_stages: {
         Row: {
           completed_at: string | null;
+          completed_manually_on: string | null;
           due_on: string;
           goal_id: string;
           id: string;
@@ -85,6 +125,7 @@ export type Database = {
         };
         Insert: {
           completed_at?: string | null;
+          completed_manually_on?: string | null;
           due_on: string;
           goal_id: string;
           id?: string;
@@ -95,6 +136,7 @@ export type Database = {
         };
         Update: {
           completed_at?: string | null;
+          completed_manually_on?: string | null;
           due_on?: string;
           goal_id?: string;
           id?: string;
@@ -115,6 +157,7 @@ export type Database = {
       };
       goals: {
         Row: {
+          completed_manually_on: string | null;
           created_at: string;
           description: string | null;
           due_on: string;
@@ -127,6 +170,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          completed_manually_on?: string | null;
           created_at?: string;
           description?: string | null;
           due_on: string;
@@ -139,6 +183,7 @@ export type Database = {
           user_id?: string;
         };
         Update: {
+          completed_manually_on?: string | null;
           created_at?: string;
           description?: string | null;
           due_on?: string;
@@ -295,7 +340,18 @@ export type Database = {
           position: number | null;
           stage_id: string | null;
           target_count: number | null;
+          window_end: string | null;
           window_start: string | null;
+        };
+        Relationships: [];
+      };
+      goal_stage_objective_progress: {
+        Row: {
+          checks_count: number | null;
+          goal_id: string | null;
+          objective_id: string | null;
+          stage_id: string | null;
+          target_count: number | null;
         };
         Relationships: [];
       };
