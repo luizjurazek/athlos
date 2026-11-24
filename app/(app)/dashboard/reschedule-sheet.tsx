@@ -1,19 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState } from "react";
 import { getBackfillStart } from "@/app/utils/checks";
 import { addDays, formatDayMonth, formatShortDate, getWeekday } from "@/app/utils/dates";
 import type { Reschedule } from "@/app/utils/occurrences";
 import { WEEKDAYS } from "@/app/utils/weekdays";
-import { ObjectiveBadge } from "../objectives/objective-badge";
 import { rescheduleObjective, undoReschedule, type RescheduleResult } from "./actions";
-import type { BlockedDays, DayObjective } from "./day-objectives";
+import type { BlockedDays } from "./day-objectives";
+import { Sheet, SheetError, useSheetAction, weekdayName, type SheetObjective } from "./sheet";
 import styles from "./dashboard.module.css";
 
 const MONTHS_SHORT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-
-type SheetObjective = Pick<DayObjective, "id" | "title" | "color" | "icon">;
 
 type MoveProps = {
   mode: "move";
@@ -35,10 +32,6 @@ export type RescheduleSheetData = MoveProps | UndoProps;
 
 export type RescheduleSheetProps = RescheduleSheetData & { onClose: () => void };
 
-function weekdayName(day: string) {
-  return WEEKDAYS[getWeekday(day)].long.toLowerCase();
-}
-
 function formatWeekRange(start: string) {
   const end = addDays(start, 6);
   const [startMonth, endMonth] = [Number(start.slice(5, 7)), Number(end.slice(5, 7))];
@@ -49,67 +42,20 @@ function formatWeekRange(start: string) {
 }
 
 export function RescheduleSheet(props: RescheduleSheetProps) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const { objective, onClose } = props;
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
-  function run(action: () => Promise<RescheduleResult>) {
-    setError(null);
-    startTransition(async () => {
-      let result: RescheduleResult;
-      try {
-        result = await action();
-      } catch {
-        result = { ok: false, error: "Não deu para salvar. Tente de novo." };
-      }
-      if (result.ok) {
-        onClose();
-        router.refresh();
-      } else {
-        setError(result.error);
-      }
-    });
-  }
+  const { pending, error, run } = useSheetAction(onClose);
 
   return (
-    <dialog
-      ref={ref}
-      className={styles.sheet}
-      aria-labelledby="reschedule-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+    <Sheet
+      objective={objective}
+      title={props.mode === "move" ? "Mudar de dia" : "Mudou de dia"}
+      subtitle={
+        props.mode === "move"
+          ? `${objective.title} de ${weekdayName(props.fromDay)}, ${formatDayMonth(props.fromDay)}`
+          : `${objective.title}: ${formatShortDate(props.reschedule.fromDay)} → ${formatShortDate(props.reschedule.toDay)}`
+      }
+      onClose={onClose}
     >
-      <div className={styles.sheetHeader}>
-        <ObjectiveBadge color={objective.color} icon={objective.icon} />
-        <div className={styles.sheetHeading}>
-          <h2 id="reschedule-title" className={styles.sheetTitle}>
-            {props.mode === "move" ? "Mudar de dia" : "Mudou de dia"}
-          </h2>
-          <p className={styles.sheetSubtitle}>
-            {props.mode === "move"
-              ? `${objective.title} de ${weekdayName(props.fromDay)}, ${formatDayMonth(props.fromDay)}`
-              : `${objective.title}: ${formatShortDate(props.reschedule.fromDay)} → ${formatShortDate(props.reschedule.toDay)}`}
-          </p>
-        </div>
-        <button type="button" className={styles.sheetClose} aria-label="Fechar" onClick={onClose}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 6l12 12M18 6 6 18" />
-          </svg>
-        </button>
-      </div>
-
       {props.mode === "move" ? (
         <MovePicker {...props} pending={pending} error={error} onSubmit={run} />
       ) : (
@@ -119,11 +65,7 @@ export function RescheduleSheet(props: RescheduleSheetProps) {
               ? "O novo dia já tem check. Desmarque antes de desfazer."
               : `Desfazer devolve ${objective.title} para ${weekdayName(props.reschedule.fromDay)}, ${formatDayMonth(props.reschedule.fromDay)}.`}
           </p>
-          {error && (
-            <p className={styles.sheetError} role="alert">
-              {error}
-            </p>
-          )}
+          <SheetError error={error} />
           <div className={styles.sheetActions}>
             <button type="button" className={styles.secondaryButton} onClick={onClose}>
               Fechar
@@ -139,7 +81,7 @@ export function RescheduleSheet(props: RescheduleSheetProps) {
           </div>
         </>
       )}
-    </dialog>
+    </Sheet>
   );
 }
 
@@ -169,6 +111,7 @@ function MovePicker({
   function blockReason(day: string) {
     if (day === fromDay) return "Este é o dia que você está mudando.";
     if (blocked.occurrence.includes(day)) return `Já tem ${objective.title} neste dia.`;
+    if (blocked.replaced.includes(day)) return `${objective.title} foi trocado neste dia.`;
     if (blocked.checked.includes(day)) return "Já tem check neste dia.";
     return null;
   }
@@ -227,11 +170,7 @@ function MovePicker({
       <p className={styles.sheetInfo} aria-live="polite">
         {info}
       </p>
-      {error && (
-        <p className={styles.sheetError} role="alert">
-          {error}
-        </p>
-      )}
+      <SheetError error={error} />
 
       <div className={styles.sheetActions}>
         {!selected ? (

@@ -30,6 +30,7 @@ import {
   type DayData,
   type StripDay,
 } from "./day-objectives";
+import { AddObjectiveButton } from "./day-change-sheets";
 import { DayHeading } from "./day-heading";
 import { StripDayLink, StripScroller } from "./strip-scroller";
 import { GoalsSummary } from "./goals-summary";
@@ -149,29 +150,36 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
       <>
         {header}
         <PendingSwap fallback={<DayBodySkeleton />}>
-          <EmptyCard
-            icon={<CalendarIcon />}
-            title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
-          >
-            {data.movedAway.length > 0
-              ? data.movedAway
-                  .map((item) => `${item.title} mudou para ${formatShortDate(item.toDay)}.`)
-                  .join(" ")
-              : describeFreeDay(data.active, day)}
-            {next && (
-              <>
-                {" "}
-                O próximo é{" "}
-                <strong className={styles.emptyStrong}>
-                  {next.objective.title}
-                </strong>
-                , {next.when}.
-              </>
-            )}
-            <Link className={styles.emptyLink} href="/objectives">
-              Ver objetivos
-            </Link>
-          </EmptyCard>
+          <div className={styles.listArea}>
+            <EmptyCard
+              icon={<CalendarIcon />}
+              title={day === today ? "Nada programado para hoje" : "Nada programado neste dia"}
+            >
+              {data.leftRoutine.length > 0
+                ? data.leftRoutine
+                    .map((item) =>
+                      item.kind === "moved"
+                        ? `${item.title} mudou para ${formatShortDate(item.toDay)}.`
+                        : `${item.title} foi trocado${item.byTitle ? ` por ${item.byTitle}` : ""}.`,
+                    )
+                    .join(" ")
+                : describeFreeDay(data.active, day)}
+              {next && (
+                <>
+                  {" "}
+                  O próximo é{" "}
+                  <strong className={styles.emptyStrong}>
+                    {next.objective.title}
+                  </strong>
+                  , {next.when}.
+                </>
+              )}
+              <Link className={styles.emptyLink} href="/objectives">
+                Ver objetivos
+              </Link>
+            </EmptyCard>
+            <AddObjectiveButton day={day} today={today} options={data.dayOptions} />
+          </div>
           <aside className={styles.aside}>
             {day === today && data.pending.length > 0 && (
               <PendingPanel
@@ -200,6 +208,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
           pending={day === today ? data.pending : []}
           blocked={data.blocked}
           pickerRange={data.pickerRange}
+          dayOptions={data.dayOptions}
           goals={goals}
         />
       </PendingSwap>

@@ -7,11 +7,45 @@ import { formatShortDate, getWeekday } from "@/app/utils/dates";
 import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { setCheck, type CheckFailure } from "./actions";
-import type { BlockedDays, DayObjective, PendingItem } from "./day-objectives";
+import {
+  ActionsSheet,
+  AddObjectiveButton,
+  AdditionUndoSheet,
+  PickObjectiveSheet,
+  type DayAction,
+} from "./day-change-sheets";
+import type { BlockedDays, DayObjective, DayOption, PendingItem } from "./day-objectives";
 import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
 import styles from "./dashboard.module.css";
 
-type SheetState = RescheduleSheetData | null;
+type SheetState =
+  | { kind: "reschedule"; data: RescheduleSheetData }
+  | { kind: "actions" | "replace"; item: DayObjective }
+  | null;
+
+function getActions(item: DayObjective): DayAction[] {
+  if (item.addition || item.reschedule) return [];
+  const actions: DayAction[] = [];
+  if (item.reschedulable) actions.push("move");
+  if (item.alternatives.length > 0) actions.push("replace");
+  return actions;
+}
+
+function moreLabel(item: DayObjective) {
+  if (item.addition) {
+    return item.addition.replacedObjectiveId
+      ? `${item.title}: desfazer troca`
+      : `${item.title}: tirar deste dia`;
+  }
+  if (item.reschedule) return `${item.title}: desfazer mudança de dia`;
+  const actions = getActions(item);
+  if (actions.length > 1) return `${item.title}: mudar de dia ou trocar`;
+  return actions[0] === "move" ? `${item.title}: mudar de dia` : `${item.title}: trocar por outro objetivo`;
+}
+
+function hasMore(item: DayObjective) {
+  return Boolean(item.addition || item.reschedule) || getActions(item).length > 0;
+}
 
 type Failure = {
   id: string;
@@ -27,6 +61,7 @@ export function TodayView({
   pending,
   blocked,
   pickerRange,
+  dayOptions,
   goals,
 }: {
   day: string;
@@ -35,17 +70,74 @@ export function TodayView({
   pending: PendingItem[];
   blocked: Record<string, BlockedDays>;
   pickerRange: { from: string; to: string };
+  dayOptions: DayOption[];
   goals?: ReactNode;
 }) {
   const [sheet, setSheet] = useState<SheetState>(null);
   const future = day > today;
 
-  function openActions(item: DayObjective, from: string) {
-    if (item.reschedule) {
-      setSheet({ mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked });
-    } else {
-      setSheet({ mode: "move", objective: item, fromDay: from, today, blocked: blocked[item.id], pickerRange });
+  function openMove(item: DayObjective, from: string) {
+    setSheet({
+      kind: "reschedule",
+      data: { mode: "move", objective: item, fromDay: from, today, blocked: blocked[item.id], pickerRange },
+    });
+  }
+
+  function openActions(item: DayObjective) {
+    if (item.addition) {
+      setSheet({ kind: "actions", item });
+      return;
     }
+    if (item.reschedule) {
+      setSheet({
+        kind: "reschedule",
+        data: { mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked },
+      });
+      return;
+    }
+    const actions = getActions(item);
+    if (actions.length > 1) setSheet({ kind: "actions", item });
+    else if (actions[0] === "move") openMove(item, day);
+    else setSheet({ kind: "replace", item });
+  }
+
+  function renderSheet() {
+    if (!sheet) return null;
+    const close = () => setSheet(null);
+    if (sheet.kind === "reschedule") return <RescheduleSheet {...sheet.data} onClose={close} />;
+    const { item } = sheet;
+    if (item.addition) {
+      return (
+        <AdditionUndoSheet
+          objective={item}
+          addition={item.addition}
+          replacedTitle={item.replacedTitle}
+          checked={item.checked}
+          onClose={close}
+        />
+      );
+    }
+    if (sheet.kind === "actions") {
+      return (
+        <ActionsSheet
+          objective={item}
+          day={day}
+          checked={item.checked}
+          onPick={(action) => (action === "move" ? openMove(item, day) : setSheet({ kind: "replace", item }))}
+          onClose={close}
+        />
+      );
+    }
+    return (
+      <PickObjectiveSheet
+        mode="replace"
+        replaced={item}
+        day={day}
+        today={today}
+        options={dayOptions.filter((option) => item.alternatives.includes(option.id))}
+        onClose={close}
+      />
+    );
   }
 
   const router = useRouter();
@@ -82,8 +174,8 @@ export function TodayView({
         <div className={styles.summaryArea}>
           {future ? (
             <p className={styles.futureNote}>
-              Ainda não dá para marcar este dia. Dá para adiantar a mudança de dia dos objetivos que
-              podem mudar.
+              Ainda não dá para marcar este dia. Dá para adiantar mudanças de dia, trocas e
+              objetivos extras.
             </p>
           ) : (
             <DaySummary done={done} total={items.length} />
@@ -101,7 +193,7 @@ export function TodayView({
           )}
         </div>
         {pending.length > 0 && (
-          <PendingSection items={pending} onMove={(item) => openActions(item.objective, item.day)} />
+          <PendingSection items={pending} onMove={(item) => openMove(item.objective, item.day)} />
         )}
         {goals}
       </aside>
@@ -131,7 +223,11 @@ export function TodayView({
                 <span className={styles.rowText}>
                   <span className={styles.rowTitle}>{item.title}</span>
                   <span className={styles.rowMeta}>
-                    {item.reschedule ? (
+                    {item.addition ? (
+                      <span className={styles.movedBadge}>
+                        {item.replacedTitle ? `no lugar de ${item.replacedTitle}` : "extra"}
+                      </span>
+                    ) : item.reschedule ? (
                       <span className={styles.movedBadge}>
                         → realocado de {WEEKDAYS[getWeekday(item.reschedule.fromDay)].short.toLowerCase()}
                       </span>
@@ -140,14 +236,14 @@ export function TodayView({
                     )}
                   </span>
                 </span>
-                {!item.reschedulable && <ObjectiveBadge color={item.color} icon={item.icon} />}
+                {!hasMore(item) && <ObjectiveBadge color={item.color} icon={item.icon} />}
               </button>
-              {item.reschedulable && (
+              {hasMore(item) && (
                 <button
                   type="button"
                   className={styles.moreButton}
-                  aria-label={item.reschedule ? `${item.title}: desfazer mudança de dia` : `${item.title}: mudar de dia`}
-                  onClick={() => openActions(item, day)}
+                  aria-label={moreLabel(item)}
+                  onClick={() => openActions(item)}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <circle cx="6" cy="12" r="1.5" />
@@ -159,9 +255,10 @@ export function TodayView({
             </li>
           ))}
         </ul>
+        <AddObjectiveButton day={day} today={today} options={dayOptions} />
       </section>
 
-      {sheet && <RescheduleSheet {...sheet} onClose={() => setSheet(null)} />}
+      {renderSheet()}
     </>
   );
 }
@@ -315,7 +412,7 @@ export function PendingPanel({
   blocked: Record<string, BlockedDays>;
   pickerRange: { from: string; to: string };
 }) {
-  const [sheet, setSheet] = useState<SheetState>(null);
+  const [sheet, setSheet] = useState<RescheduleSheetData | null>(null);
   return (
     <>
       <PendingSection

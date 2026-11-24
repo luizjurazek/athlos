@@ -415,7 +415,8 @@
 
 .listArea,
 .empty,
-.error {
+.error,
+.addButton {
   order: 1;
 }
 
@@ -894,6 +895,100 @@
   background: var(--color-accent);
 }
 
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.addButton svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.addButton:active {
+  transform: scale(0.97);
+}
+
+.optionRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-target) + var(--space-2));
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.optionRow:active:not([aria-disabled="true"]) {
+  background: var(--color-surface-muted);
+}
+
+.optionRow:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.optionRow[aria-disabled="true"] {
+  cursor: default;
+}
+
+.optionRow[aria-disabled="true"] .rowTitle {
+  color: var(--color-text-muted);
+}
+
+.optionRadio {
+  flex-shrink: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    border-width var(--duration-fast) var(--ease-standard);
+}
+
+.optionRow[aria-pressed="true"] .optionRadio {
+  border-color: var(--color-primary);
+  border-width: 6px;
+}
+
+.optionRow[aria-disabled="true"] .optionRadio {
+  border-style: dashed;
+}
+
+.optionChevron {
+  flex-shrink: 0;
+  width: var(--space-4);
+  height: var(--space-4);
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .sheetInfo {
   font-size: var(--text-footnote);
   color: var(--color-text-muted);
@@ -915,7 +1010,8 @@
 .pendingButton:focus-visible,
 .secondaryButton:focus-visible,
 .primaryButton:focus-visible,
-.pickerDay:focus-visible {
+.pickerDay:focus-visible,
+.addButton:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
@@ -933,6 +1029,11 @@
 
   .moreButton:hover {
     background: var(--color-fill);
+  }
+
+  .addButton:hover,
+  .optionRow:not([aria-disabled="true"]):hover {
+    background: var(--color-surface-muted);
   }
 
   .pickerDay:not([data-blocked="true"]):not([data-origin="true"]):not([aria-pressed="true"]):hover {
