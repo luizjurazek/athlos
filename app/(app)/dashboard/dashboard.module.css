@@ -405,7 +405,7 @@
 }
 
 .bottomAction {
-  margin-top: auto;
+  order: 1;
 }
 
 /* Below 1024px the aside dissolves so the goals can follow the list while the summary stays on top. */
