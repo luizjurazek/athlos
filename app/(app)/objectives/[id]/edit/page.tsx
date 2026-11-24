@@ -6,6 +6,7 @@ import { BackLink } from "@/app/components/BackLink";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { getLinkableGoals } from "../../../goals/data";
+import { getAlternativeOptions } from "../../data";
 import {
   archiveObjective,
   deleteObjective,
@@ -37,7 +38,10 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
     .eq("id", id)
     .maybeSingle();
   if (!objective) notFound();
-  const { goals, linkedIds } = await getLinkableGoals(supabase, id);
+  const [{ goals, linkedIds }, alternatives] = await Promise.all([
+    getLinkableGoals(supabase, id),
+    getAlternativeOptions(supabase, id),
+  ]);
 
   return (
     <>
@@ -48,6 +52,8 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
         objective={objective}
         goals={goals}
         linkedGoalIds={linkedIds}
+        alternatives={alternatives.options}
+        alternativeIds={alternatives.linkedIds}
         submitLabel="Salvar"
       />
       <ObjectiveActionsPanel

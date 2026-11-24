@@ -15,6 +15,7 @@ import {
 } from "@/app/utils/weekdays";
 import type { LinkableGoal } from "../goals/data";
 import type { FormState } from "./actions";
+import type { AlternativeOption } from "./data";
 import { ObjectiveIcon } from "./objective-icon";
 import {
   OBJECTIVE_COLORS,
@@ -32,6 +33,8 @@ type ObjectiveFormProps = {
   >;
   goals: LinkableGoal[];
   linkedGoalIds?: string[];
+  alternatives: AlternativeOption[];
+  alternativeIds?: string[];
   submitLabel: string;
 };
 
@@ -53,6 +56,8 @@ export function ObjectiveForm({
   objective,
   goals,
   linkedGoalIds = [],
+  alternatives,
+  alternativeIds: initialAlternativeIds = [],
   submitLabel,
 }: ObjectiveFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -66,10 +71,17 @@ export function ObjectiveForm({
     objective?.reschedulable ?? false,
   );
   const [goalIds, setGoalIds] = useState(linkedGoalIds);
+  const [alternativeIds, setAlternativeIds] = useState(initialAlternativeIds);
 
   function toggleGoal(id: string) {
     setGoalIds((current) =>
       current.includes(id) ? current.filter((goalId) => goalId !== id) : [...current, id],
+    );
+  }
+
+  function toggleAlternative(id: string) {
+    setAlternativeIds((current) =>
+      current.includes(id) ? current.filter((alternativeId) => alternativeId !== id) : [...current, id],
     );
   }
 
@@ -163,6 +175,29 @@ export function ObjectiveForm({
               não.
             </p>
           </div>
+          {alternatives.length > 0 && (
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>Pode ser trocado por</legend>
+              <div className={styles.presets}>
+                {alternatives.map((alternative) => (
+                  <label key={alternative.id} className={styles.goalOption}>
+                    <input
+                      className={styles.visuallyHidden}
+                      type="checkbox"
+                      name="alternative_ids"
+                      value={alternative.id}
+                      checked={alternativeIds.includes(alternative.id)}
+                      onChange={() => toggleAlternative(alternative.id)}
+                    />
+                    {alternative.title}
+                  </label>
+                ))}
+              </div>
+              <p className={styles.hint}>
+                Ex.: futebol na terça. No dia em que não rolar, troque por corrida em Hoje.
+              </p>
+            </fieldset>
+          )}
         </div>
         <div className={styles.formColumn}>
           <fieldset className={styles.fieldset}>

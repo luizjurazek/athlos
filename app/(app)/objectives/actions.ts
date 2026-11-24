@@ -40,14 +40,41 @@ async function countPendingReschedules(supabase: Client, objectiveId: string, us
   return reschedules.data.filter((item) => !checkedDays.has(item.to_day)).length;
 }
 
-function parseGoalIds(formData: FormData) {
+function parseIds(formData: FormData, name: "goal_ids" | "alternative_ids") {
   return [
     ...new Set(
       formData
-        .getAll("goal_ids")
+        .getAll(name)
         .filter((value): value is string => typeof value === "string" && value !== ""),
     ),
   ];
+}
+
+/** RN-21: replaces the objective's alternatives with `alternativeIds` (the composite FK keeps them owned). */
+async function syncAlternatives(supabase: Client, objectiveId: string, alternativeIds: string[]) {
+  const { data, error } = await supabase
+    .from("objective_alternatives")
+    .select("alternative_id")
+    .eq("objective_id", objectiveId);
+  if (error) return error;
+  const linked = data.map((link) => link.alternative_id);
+  const removed = linked.filter((id) => !alternativeIds.includes(id));
+  const added = alternativeIds.filter((id) => id !== objectiveId && !linked.includes(id));
+  const [removeResult, addResult] = await Promise.all([
+    removed.length > 0
+      ? supabase
+          .from("objective_alternatives")
+          .delete()
+          .eq("objective_id", objectiveId)
+          .in("alternative_id", removed)
+      : null,
+    added.length > 0
+      ? supabase
+          .from("objective_alternatives")
+          .insert(added.map((alternativeId) => ({ objective_id: objectiveId, alternative_id: alternativeId })))
+      : null,
+  ]);
+  return removeResult?.error ?? addResult?.error ?? null;
 }
 
 function joinTitles(titles: string[]) {
@@ -137,7 +164,7 @@ export async function createObjective(
     .single();
   if (error) return { error: "Não foi possível salvar o objetivo. Tente de novo." };
 
-  const goalIds = parseGoalIds(formData);
+  const goalIds = parseIds(formData, "goal_ids");
   if (goalIds.length > 0) {
     const { error: linkError } = await supabase
       .from("goal_objectives")
@@ -147,6 +174,17 @@ export async function createObjective(
       await supabase.from("objectives").delete().eq("id", data.id);
       return { error: "Não foi possível vincular o objetivo às metas. Tente de novo." };
     }
+  }
+
+  const alternativesError = await syncAlternatives(
+    supabase,
+    data.id,
+    parseIds(formData, "alternative_ids"),
+  );
+  if (alternativesError) {
+    console.error("Failed to save objective alternatives", alternativesError);
+    await supabase.from("objectives").delete().eq("id", data.id);
+    return { error: "Não foi possível salvar as trocas do objetivo. Tente de novo." };
   }
 
   redirect("/objectives");
@@ -171,7 +209,7 @@ export async function updateObjective(
       };
     }
   }
-  const goalIds = parseGoalIds(formData);
+  const goalIds = parseIds(formData, "goal_ids");
   let removedGoalIds: string[];
   let addedGoalIds: string[];
   try {
@@ -216,6 +254,12 @@ export async function updateObjective(
   if (removed?.error || added?.error) {
     console.error("Failed to sync objective goals", removed?.error ?? added?.error);
     return { error: "O objetivo foi salvo, mas não deu para atualizar as metas. Tente de novo." };
+  }
+
+  const alternativesError = await syncAlternatives(supabase, id, parseIds(formData, "alternative_ids"));
+  if (alternativesError) {
+    console.error("Failed to sync objective alternatives", alternativesError);
+    return { error: "O objetivo foi salvo, mas não deu para atualizar as trocas. Tente de novo." };
   }
 
   redirect(`/objectives/${id}`);
