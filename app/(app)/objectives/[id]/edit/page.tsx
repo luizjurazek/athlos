@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SkeletonForm } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
@@ -18,7 +19,7 @@ import styles from "../../objectives.module.css";
 export default function EditObjectivePage({ params }: PageProps<"/objectives/[id]/edit">) {
   return (
     <main className={styles.content}>
-      <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
+      <Suspense fallback={<SkeletonForm />}>
         <EditObjective params={params} />
       </Suspense>
     </main>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { LoadingStatus, SkeletonList } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
@@ -17,7 +18,14 @@ export default function ObjectivesPage() {
           Novo objetivo
         </Link>
       </header>
-      <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
+      <Suspense
+        fallback={
+          <section className={styles.section}>
+            <LoadingStatus />
+            <SkeletonList rows={4} />
+          </section>
+        }
+      >
         <ObjectivesList />
       </Suspense>
     </main>

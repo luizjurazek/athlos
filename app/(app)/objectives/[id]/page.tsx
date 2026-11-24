@@ -3,6 +3,12 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
+import {
+  LoadingStatus,
+  Skeleton,
+  SkeletonCard,
+  SkeletonList,
+} from "@/app/components/Skeleton";
 import { CHECK_BACKFILL_DAYS, getBackfillStart } from "@/app/utils/checks";
 import {
   addDays,
@@ -35,6 +41,31 @@ const STATE_LABELS: Record<DayState, string> = {
   off: "não programado",
 };
 
+function ObjectiveDetailSkeleton() {
+  return (
+    <>
+      <LoadingStatus />
+      <div className={styles.detailHeader} aria-hidden="true">
+        <Skeleton width="var(--space-10)" height="var(--space-10)" radius="var(--radius-md)" />
+        <div className={styles.skeletonStack}>
+          <Skeleton width="55%" height="var(--space-6)" />
+          <Skeleton width="40%" height="var(--space-3)" />
+        </div>
+      </div>
+      <div className={styles.detailColumns}>
+        <SkeletonCard lines={1} height="calc(var(--space-12) * 7)" />
+        <div className={styles.detailSide}>
+          <div className={styles.streaks}>
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <SkeletonList rows={2} badge={false} />
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function ObjectivePage({ params, searchParams }: PageProps<"/objectives/[id]">) {
   return (
     <main className={styles.content}>
@@ -42,7 +73,7 @@ export default function ObjectivePage({ params, searchParams }: PageProps<"/obje
         fallback={
           <>
             <BackLink href="/objectives" label="Objetivos" />
-            <p className={styles.muted}>Carregando...</p>
+            <ObjectiveDetailSkeleton />
           </>
         }
       >

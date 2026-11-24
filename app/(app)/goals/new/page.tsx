@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SkeletonForm } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { BackLink } from "@/app/components/BackLink";
 import { getUserToday } from "@/app/utils/dates";
@@ -15,7 +16,7 @@ export default function NewGoalPage() {
     <main className={ui.content}>
       <BackLink href="/goals" label="Metas" />
       <h1 className={ui.title}>Nova meta</h1>
-      <Suspense fallback={<p className={ui.muted}>Carregando...</p>}>
+      <Suspense fallback={<SkeletonForm />}>
         <NewGoalForm />
       </Suspense>
     </main>

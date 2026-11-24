@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { LoadingStatus, Skeleton, SkeletonCard } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { getUserToday } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
@@ -18,7 +19,16 @@ export default function GoalsPage() {
         <h1 className={ui.title}>Metas</h1>
         <NewGoalLink className={ui.headerAction} />
       </header>
-      <Suspense fallback={<p className={ui.muted}>Carregando...</p>}>
+      <Suspense
+        fallback={
+          <section className={styles.section}>
+            <LoadingStatus />
+            <Skeleton height="var(--touch-target)" radius="var(--radius-md)" />
+            <SkeletonCard lines={3} height="calc(var(--space-12) * 2)" />
+            <SkeletonCard lines={3} height="calc(var(--space-12) * 2)" />
+          </section>
+        }
+      >
         <GoalsList />
       </Suspense>
     </main>

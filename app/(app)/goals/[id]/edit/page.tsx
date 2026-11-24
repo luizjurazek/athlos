@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SkeletonForm } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
@@ -17,7 +18,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function EditGoalPage({ params }: PageProps<"/goals/[id]/edit">) {
   return (
     <main className={ui.content}>
-      <Suspense fallback={<p className={ui.muted}>Carregando...</p>}>
+      <Suspense fallback={<SkeletonForm />}>
         <EditGoal params={params} />
       </Suspense>
     </main>

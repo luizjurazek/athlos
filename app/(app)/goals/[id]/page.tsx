@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { LoadingStatus, Skeleton, SkeletonCard, SkeletonList } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/app/components/BackLink";
@@ -39,7 +40,20 @@ export default function GoalPage({ params }: PageProps<"/goals/[id]">) {
         fallback={
           <>
             <BackLink href="/goals" label="Metas" />
-            <p className={ui.muted}>Carregando...</p>
+            <LoadingStatus />
+            <div className={ui.skeletonStack} aria-hidden="true">
+              <Skeleton width="55%" height="var(--space-6)" />
+              <Skeleton width="40%" height="var(--space-3)" />
+            </div>
+            <div className={styles.detailColumns}>
+              <div className={styles.column}>
+                <SkeletonCard lines={3} height="calc(var(--space-12) * 4)" />
+              </div>
+              <div className={styles.column}>
+                <SkeletonList rows={2} />
+                <SkeletonList rows={2} />
+              </div>
+            </div>
           </>
         }
       >

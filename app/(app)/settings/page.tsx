@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { LoadingStatus, SkeletonList } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { logout } from "@/app/(auth)/actions";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
@@ -11,7 +12,15 @@ export default function SettingsPage() {
     <main className={styles.content}>
       <h1 className={styles.title}>Ajustes</h1>
       <div className={styles.columns}>
-        <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
+        <Suspense
+          fallback={
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>Conta</h2>
+              <LoadingStatus />
+              <SkeletonList rows={2} badge={false} />
+            </section>
+          }
+        >
           <AccountSection />
         </Suspense>
         <div className={styles.column}>

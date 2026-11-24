@@ -14,10 +14,6 @@
   line-height: 1.15;
 }
 
-.muted {
-  color: var(--color-text-muted);
-}
-
 .columns,
 .column {
   display: flex;

@@ -38,10 +38,6 @@
   line-height: 1.15;
 }
 
-.muted {
-  color: var(--color-text-muted);
-}
-
 .empty {
   padding: var(--space-6) var(--space-4);
   border-radius: var(--radius-lg);
@@ -948,4 +944,11 @@
   .calendarDay {
     font-size: var(--text-body);
   }
+}
+
+.skeletonStack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }

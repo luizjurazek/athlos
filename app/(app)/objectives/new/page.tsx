@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SkeletonForm } from "@/app/components/Skeleton";
 import { cookies } from "next/headers";
 import { createClient } from "@/app/utils/supabase/server";
 import { getLinkableGoals } from "../../goals/data";
@@ -13,7 +14,7 @@ export default function NewObjectivePage() {
     <main className={styles.content}>
       <BackLink href="/objectives" label="Objetivos" />
       <h1 className={styles.title}>Novo objetivo</h1>
-      <Suspense fallback={<p className={styles.muted}>Carregando...</p>}>
+      <Suspense fallback={<SkeletonForm />}>
         <NewObjectiveForm />
       </Suspense>
     </main>
