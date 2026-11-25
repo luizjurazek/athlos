@@ -1,10 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useOptimistic, useState, type ReactNode } from "react";
+import {
+  startTransition,
+  useOptimistic,
+  useState,
+  type ReactNode,
+} from "react";
 import { CHECK_BACKFILL_DAYS } from "@/app/utils/checks";
 import { formatShortDate, getWeekday } from "@/app/utils/dates";
-import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
+import { WEEKDAYS } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { setCheck, type CheckFailure } from "./actions";
 import {
@@ -14,7 +19,12 @@ import {
   PickObjectiveSheet,
   type DayAction,
 } from "./day-change-sheets";
-import type { BlockedDays, DayObjective, DayOption, PendingItem } from "./day-objectives";
+import type {
+  BlockedDays,
+  DayObjective,
+  DayOption,
+  PendingItem,
+} from "./day-objectives";
 import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
 import styles from "./dashboard.module.css";
 
@@ -40,11 +50,15 @@ function moreLabel(item: DayObjective) {
   if (item.reschedule) return `${item.title}: desfazer mudança de dia`;
   const actions = getActions(item);
   if (actions.length > 1) return `${item.title}: mudar de dia ou trocar`;
-  return actions[0] === "move" ? `${item.title}: mudar de dia` : `${item.title}: trocar por outro objetivo`;
+  return actions[0] === "move"
+    ? `${item.title}: mudar de dia`
+    : `${item.title}: trocar por outro objetivo`;
 }
 
 function hasMore(item: DayObjective) {
-  return Boolean(item.addition || item.reschedule) || getActions(item).length > 0;
+  return (
+    Boolean(item.addition || item.reschedule) || getActions(item).length > 0
+  );
 }
 
 type Failure = {
@@ -79,7 +93,14 @@ export function TodayView({
   function openMove(item: DayObjective, from: string) {
     setSheet({
       kind: "reschedule",
-      data: { mode: "move", objective: item, fromDay: from, today, blocked: blocked[item.id], pickerRange },
+      data: {
+        mode: "move",
+        objective: item,
+        fromDay: from,
+        today,
+        blocked: blocked[item.id],
+        pickerRange,
+      },
     });
   }
 
@@ -91,7 +112,12 @@ export function TodayView({
     if (item.reschedule) {
       setSheet({
         kind: "reschedule",
-        data: { mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked },
+        data: {
+          mode: "undo",
+          objective: item,
+          reschedule: item.reschedule,
+          checked: item.checked,
+        },
       });
       return;
     }
@@ -104,7 +130,8 @@ export function TodayView({
   function renderSheet() {
     if (!sheet) return null;
     const close = () => setSheet(null);
-    if (sheet.kind === "reschedule") return <RescheduleSheet {...sheet.data} onClose={close} />;
+    if (sheet.kind === "reschedule")
+      return <RescheduleSheet {...sheet.data} onClose={close} />;
     const { item } = sheet;
     if (item.addition) {
       return (
@@ -123,7 +150,11 @@ export function TodayView({
           objective={item}
           day={day}
           checked={item.checked}
-          onPick={(action) => (action === "move" ? openMove(item, day) : setSheet({ kind: "replace", item }))}
+          onPick={(action) =>
+            action === "move"
+              ? openMove(item, day)
+              : setSheet({ kind: "replace", item })
+          }
           onClose={close}
         />
       );
@@ -134,7 +165,9 @@ export function TodayView({
         replaced={item}
         day={day}
         today={today}
-        options={dayOptions.filter((option) => item.alternatives.includes(option.id))}
+        options={dayOptions.filter((option) =>
+          item.alternatives.includes(option.id),
+        )}
         onClose={close}
       />
     );
@@ -174,8 +207,8 @@ export function TodayView({
         <div className={styles.summaryArea}>
           {future ? (
             <p className={styles.futureNote}>
-              Ainda não dá para marcar este dia. Dá para adiantar mudanças de dia, trocas e
-              objetivos extras.
+              Ainda não dá para marcar este dia. Dá para adiantar mudanças de
+              dia, trocas e objetivos extras.
             </p>
           ) : (
             <DaySummary done={done} total={items.length} />
@@ -193,7 +226,10 @@ export function TodayView({
           )}
         </div>
         {pending.length > 0 && (
-          <PendingSection items={pending} onMove={(item) => openMove(item.objective, item.day)} />
+          <PendingSection
+            items={pending}
+            onMove={(item) => openMove(item.objective, item.day)}
+          />
         )}
         {goals}
       </aside>
@@ -225,18 +261,23 @@ export function TodayView({
                   <span className={styles.rowMeta}>
                     {item.addition ? (
                       <span className={styles.movedBadge}>
-                        {item.replacedTitle ? `no lugar de ${item.replacedTitle}` : "extra"}
+                        {item.replacedTitle
+                          ? `no lugar de ${item.replacedTitle}`
+                          : "extra"}
                       </span>
                     ) : item.reschedule ? (
                       <span className={styles.movedBadge}>
-                        → realocado de {WEEKDAYS[getWeekday(item.reschedule.fromDay)].short.toLowerCase()}
+                        → realocado de{" "}
+                        {WEEKDAYS[
+                          getWeekday(item.reschedule.fromDay)
+                        ].short.toLowerCase()}
                       </span>
-                    ) : (
-                      formatWeekdays(item.weekdays)
-                    )}
+                    ) : null}
                   </span>
                 </span>
-                {!hasMore(item) && <ObjectiveBadge color={item.color} icon={item.icon} />}
+                {!hasMore(item) && (
+                  <ObjectiveBadge color={item.color} icon={item.icon} />
+                )}
               </button>
               {hasMore(item) && (
                 <button
@@ -276,17 +317,31 @@ export function PendingSection({
         <h2 id="pending-title" className={styles.sectionTitle}>
           Pendentes
         </h2>
-        <span className={styles.pendingHint}>últimos {CHECK_BACKFILL_DAYS} dias</span>
+        <span className={styles.pendingHint}>
+          últimos {CHECK_BACKFILL_DAYS} dias
+        </span>
       </div>
       <ul className={styles.list}>
         {items.map((item) => (
-          <li key={`${item.objective.id}:${item.day}`} className={styles.pendingRow}>
-            <ObjectiveBadge color={item.objective.color} icon={item.objective.icon} />
+          <li
+            key={`${item.objective.id}:${item.day}`}
+            className={styles.pendingRow}
+          >
+            <ObjectiveBadge
+              color={item.objective.color}
+              icon={item.objective.icon}
+            />
             <span className={styles.rowText}>
               <span className={styles.rowTitle}>{item.objective.title}</span>
-              <span className={styles.pendingMeta}>Faltou {formatShortDate(item.day)}</span>
+              <span className={styles.pendingMeta}>
+                Faltou {formatShortDate(item.day)}
+              </span>
             </span>
-            <button type="button" className={styles.pendingButton} onClick={() => onMove(item)}>
+            <button
+              type="button"
+              className={styles.pendingButton}
+              onClick={() => onMove(item)}
+            >
               Mudar de dia
             </button>
           </li>
