@@ -7,10 +7,19 @@ import styles from "./dashboard.module.css";
 
 /** Goal card with a +1 button that logs an entry for today and updates the count right away. */
 export function QuickEntryGoal({ card }: { card: GoalCardData }) {
-  const [optimistic, addOne] = useOptimistic(card, (current) => {
-    const done = current.done + 1;
-    return { ...current, done, progress: Math.min(1, done / Math.max(1, current.targetCount)) };
-  });
+  const [optimistic, addOne] = useOptimistic(card, (current) => ({
+    ...current,
+    bars: current.bars.map((bar) => {
+      const done = bar.done + 1;
+      const progress = done / Math.max(1, bar.targetCount);
+      const reached = (bar.segments ?? [{ end: 1 }]).filter((segment) => progress >= segment.end);
+      return {
+        ...bar,
+        done,
+        completedUntil: Math.max(bar.completedUntil, ...reached.map((segment) => segment.end)),
+      };
+    }),
+  }));
   const [error, setError] = useState<string | null>(null);
   const milestone = card.quickEntry?.milestone ?? false;
 
@@ -26,7 +35,7 @@ export function QuickEntryGoal({ card }: { card: GoalCardData }) {
   return (
     <div className={styles.quickEntry}>
       <div className={styles.quickEntryRow}>
-        <GoalCard card={optimistic} footer="remaining" />
+        <GoalCard card={optimistic} showObjectives={false} reserveAction />
         <button
           type="button"
           className={styles.quickEntryButton}
@@ -38,7 +47,12 @@ export function QuickEntryGoal({ card }: { card: GoalCardData }) {
               <path d="m5 12 5 5 9-10" />
             </svg>
           ) : (
-            "+1"
+            <>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              1
+            </>
           )}
         </button>
       </div>

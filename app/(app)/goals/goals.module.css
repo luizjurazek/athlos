@@ -131,18 +131,34 @@
   overflow-wrap: anywhere;
 }
 
-.cardBar {
+.cardBars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   margin-top: var(--space-3);
+}
+
+.cardBarItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .cardFooter {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+  gap: var(--space-1) var(--space-3);
   font-size: var(--text-footnote);
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.card[data-action="true"] .cardBarItem:last-child .cardFooter {
+  min-height: var(--touch-target);
+  align-items: center;
+  padding-right: calc(var(--touch-target) + var(--space-3));
 }
 
 .cardCount {
@@ -151,12 +167,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.cardObjectives {
-  min-width: 0;
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.cardNote {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .detailTop {
@@ -247,6 +263,57 @@
   font-variant-numeric: tabular-nums;
 }
 
+.objectiveGoals {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.objectiveGoal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.objectiveGoalHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.objectiveGoalTitle {
+  min-width: 0;
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.objectiveGoalHeader strong {
+  font-size: var(--text-title-3);
+  font-weight: var(--font-weight-strong);
+}
+
+.objectiveGoalMeta {
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stageNow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.stageNowLabel {
+  font-size: var(--text-footnote);
+  color: var(--color-text-muted);
+}
+
 .objectiveProgress {
   list-style: none;
   display: flex;
@@ -296,6 +363,10 @@
   flex-shrink: 0;
 }
 
+.entryEditRow {
+  padding: var(--space-4);
+}
+
 .textButton {
   min-height: var(--touch-target);
   padding: 0 var(--space-3);
@@ -308,30 +379,39 @@
   cursor: pointer;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
+.deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.stats > div {
-  padding: var(--space-3) var(--space-4);
+.deadlineDue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.stats > div + div {
-  border-left: 1px solid var(--color-border);
+.deadlineDue strong {
+  font-weight: var(--font-weight-strong);
 }
 
-.stats dt {
+.deadlineDue svg {
+  flex-shrink: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.deadlineMissing {
   font-size: var(--text-footnote);
   color: var(--color-text-muted);
-}
-
-.stats dd {
-  font-size: var(--text-headline);
-  font-weight: var(--font-weight-medium);
-  font-variant-numeric: tabular-nums;
 }
 
 .timeline {
@@ -405,6 +485,34 @@
 .timelineTitle {
   font-weight: var(--font-weight-medium);
   overflow-wrap: anywhere;
+}
+
+.timelineObjectives {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+}
+
+.timelineObjectives li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.timelineObjectives li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.timelineObjectives li > span:last-child {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.timelineObjectives li[data-done="true"] > span:last-child {
+  color: var(--color-success);
 }
 
 .timelineMeta {
@@ -485,6 +593,33 @@
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+
+.split {
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.splitSummary {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border-radius: inherit;
+}
+
+.splitSummary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.splitBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
 }
 
 .stage[data-locked="true"] {
@@ -575,7 +710,8 @@
   padding: 0 var(--space-3);
 }
 
-.suffixGroup {
+/* Scoped to .form so it beats .group from objectives.module.css whatever the CSS chunk order. */
+.form .suffixGroup {
   flex-direction: row;
   align-items: center;
 }
@@ -585,6 +721,13 @@
   min-width: 0;
   padding-right: var(--space-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* The number always keeps room for 5 digits; a long unit suffix is the one that gets truncated. */
+.form .suffixGroup .targetInput {
+  flex: 1 0 calc(5ch + var(--space-5));
+  width: calc(5ch + var(--space-5));
+  min-width: calc(5ch + var(--space-5));
 }
 
 .suffix {
@@ -814,10 +957,6 @@
 }
 
 @media (min-width: 640px) {
-  .stats dd {
-    font-size: var(--text-title-3);
-  }
-
   .tabs {
     align-self: flex-start;
     min-width: 420px;

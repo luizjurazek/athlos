@@ -43,6 +43,7 @@
   /* Materials: translucent bars (used with backdrop-filter) and selection fills */
   --color-material: color-mix(in srgb, var(--color-bg) 72%, transparent);
   --color-fill: color-mix(in srgb, var(--color-text) 9%, transparent);
+  --color-fill-strong: color-mix(in srgb, var(--color-text) 14%, transparent);
 
   /* Primary: monochrome, inverted per theme (black on light, white on dark) */
   --color-primary: light-dark(var(--palette-near-black), var(--palette-off-white));

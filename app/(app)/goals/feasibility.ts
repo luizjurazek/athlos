@@ -1,51 +1,30 @@
 import { isDay } from "@/app/utils/dates";
 import { countScheduledDays } from "@/app/utils/goals";
 
-type ScheduledObjective = { weekdays: number[] };
+type ScheduledObjective = { id: string; weekdays: number[] };
 
 /**
- * RN-19 preview for the form: checks already counted in the window plus every scheduled
- * occurrence from today (or the window start, if later) through the stage deadline.
- */
-export function getStageCapacity({
-  objectives,
-  windowStart,
-  dueOn,
-  today,
-  doneInWindow,
-}: {
-  objectives: ScheduledObjective[];
-  windowStart: string;
-  dueOn: string;
-  today: string;
-  doneInWindow: number;
-}) {
-  if (!isDay(windowStart) || !isDay(dueOn) || dueOn < today) return null;
-  const from = windowStart > today ? windowStart : today;
-  return doneInWindow + countScheduledDays(objectives, from, dueOn);
-}
-
-/**
- * Per-objective version of getStageCapacity: `doneByObjective` holds checks already counted in the
- * window for each objective (only known when the stage was saved with per-objective targets).
+ * RN-19 preview for the form. Targets are cumulative, so a stage is feasible when what each
+ * objective already did since the goal start plus every occurrence still scheduled from today (or
+ * the goal start, if later) through the stage deadline reaches its target.
  */
 export function getObjectiveCapacities({
   objectives,
-  windowStart,
+  startsOn,
   dueOn,
   today,
   doneByObjective,
 }: {
-  objectives: (ScheduledObjective & { id: string })[];
-  windowStart: string;
+  objectives: ScheduledObjective[];
+  startsOn: string;
   dueOn: string;
   today: string;
-  doneByObjective: Map<string, number>;
+  doneByObjective: Record<string, number>;
 }) {
-  if (!isDay(windowStart) || !isDay(dueOn) || dueOn < today) return null;
-  const from = windowStart > today ? windowStart : today;
+  if (!isDay(startsOn) || !isDay(dueOn) || dueOn < today) return null;
+  const from = startsOn > today ? startsOn : today;
   return objectives.map((objective) => ({
     objectiveId: objective.id,
-    capacity: (doneByObjective.get(objective.id) ?? 0) + countScheduledDays([objective], from, dueOn),
+    capacity: (doneByObjective[objective.id] ?? 0) + countScheduledDays([objective], from, dueOn),
   }));
 }

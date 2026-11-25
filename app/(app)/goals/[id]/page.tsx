@@ -20,6 +20,7 @@ import {
   getStageStatuses,
   getUpcomingCapacity,
   hasStarted,
+  type ObjectiveTarget,
   type StageStatus,
 } from "@/app/utils/goals";
 import { createClient } from "@/app/utils/supabase/server";
@@ -31,21 +32,20 @@ import ui from "../../objectives/objectives.module.css";
 import {
   addGoalEntry,
   completeGoal,
-  completeStage,
   deleteGoalEntry,
   reopenGoal,
-  reopenStage,
+  updateGoalEntry,
 } from "../actions";
 import {
   getGoal,
   getGoalEntries,
   getObjectiveChecks,
-  getReopenableStage,
   syncGoalStatuses,
   type Goal,
   type GoalStage,
 } from "../data";
-import { formatCount, isMilestone, unitOf } from "../format";
+import { formatCount, getStageName, isMilestone, unitOf } from "../format";
+import { getGoalTotals, getObjectiveTotals, type ObjectiveTotals } from "../goal-card";
 import { GoalEntryForm, GoalEntryList } from "../goal-entries";
 import { GoalProgressPanel } from "../goal-progress-panel";
 import { PacePill, StatusPill } from "../goal-pills";
@@ -109,7 +109,7 @@ async function GoalDetail({ params }: Pick<PageProps<"/goals/[id]">, "params">) 
           current.windowStart,
           lastTracked,
         ),
-        byEntries ? getGoalEntries(supabase, goal.id, current.windowStart, lastTracked) : [],
+        byEntries ? getGoalEntries(supabase, goal.id, goal.startsOn, today) : [],
       ])
     : [[], []];
 
@@ -144,16 +144,18 @@ async function GoalDetail({ params }: Pick<PageProps<"/goals/[id]">, "params">) 
           {byEntries && goal.status === "active" && current && (
             <section className={styles.section} aria-labelledby="entries-title">
               <h2 id="entries-title" className={ui.sectionTitle}>
-                Registros da etapa
+                Registros
               </h2>
               <GoalEntryList
                 entries={entries}
                 unitLabel={unitOf(goal)}
+                minDay={goal.startsOn}
+                today={today}
+                updateAction={updateGoalEntry.bind(null, goal.id)}
                 removeAction={deleteGoalEntry.bind(null, goal.id)}
               />
             </section>
           )}
-          <ProgressActions goal={goal} current={current} today={today} />
         </div>
 
         <div className={styles.column}>
@@ -168,13 +170,33 @@ async function GoalDetail({ params }: Pick<PageProps<"/goals/[id]">, "params">) 
                     {stage.position}
                   </span>
                   <div className={styles.timelineBody}>
-                    <span className={styles.timelineTitle}>{stage.title}</span>
+                    <span className={styles.timelineTitle}>{getStageName(goal, stage)}</span>
                     <ProgressBar
                       value={stage.checksCount / stage.targetCount}
-                      label={`${stage.title}: ${stage.checksCount} de ${stage.targetCount}`}
+                      completedUntil={stage.completed ? 1 : 0}
+                      label={`${getStageName(goal, stage)}: ${stage.checksCount} de ${stage.targetCount}`}
                     />
+                    {stage.objectiveTargets && (
+                      <ul className={styles.timelineObjectives}>
+                        {stage.objectiveTargets.map((target) => (
+                          <li
+                            key={target.objectiveId}
+                            data-done={target.checksCount >= target.targetCount}
+                          >
+                            <span>{objectiveTitle(goal, target.objectiveId)}</span>
+                            <span>
+                              <strong>{Math.min(target.checksCount, target.targetCount)}</strong> de{" "}
+                              {target.targetCount}
+                              {target.checksCount >= target.targetCount && " ✓"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     <span className={styles.timelineMeta}>
-                      {describeStage(goal, stage, statuses[index], index)}
+                      {stage.objectiveTargets
+                        ? describeObjectiveStage(stage, statuses[index], index)
+                        : describeStage(goal, stage, statuses[index], index)}
                     </span>
                   </div>
                 </li>
@@ -222,6 +244,8 @@ async function GoalDetail({ params }: Pick<PageProps<"/goals/[id]">, "params">) 
           )}
         </div>
       </div>
+
+      <ProgressActions goal={goal} current={current} today={today} />
     </>
   );
 }
@@ -240,32 +264,15 @@ function ProgressActions({
   today: string;
 }) {
   const items = [];
-  const reopenable = getReopenableStage(goal, today);
   if (goal.status === "active" && current && hasStarted(current, today)) {
     items.push({
-      label: goal.stages.length === 1 ? "Concluir meta" : "Concluir etapa",
-      confirmLabel: `Concluir ${missingText(goal, current)}`,
-      pendingLabel: "Concluindo...",
-      action:
+      label: "Concluir meta",
+      confirmLabel:
         goal.stages.length === 1
-          ? completeGoal.bind(null, goal.id)
-          : completeStage.bind(null, goal.id),
-    });
-    if (goal.stages.length > 1) {
-      items.push({
-        label: "Concluir meta",
-        confirmLabel: "Concluir a meta agora",
-        pendingLabel: "Concluindo...",
-        action: completeGoal.bind(null, goal.id),
-      });
-    }
-  }
-  if (reopenable && goal.status !== "expired") {
-    items.push({
-      label: `Reabrir etapa ${reopenable.position}`,
-      confirmLabel: `Reabrir ${reopenable.title}`,
-      pendingLabel: "Reabrindo...",
-      action: reopenStage.bind(null, goal.id),
+          ? `Concluir ${missingText(goal, current)}`
+          : "Concluir a meta agora",
+      pendingLabel: "Concluindo...",
+      action: completeGoal.bind(null, goal.id),
     });
   }
   if (goal.completedManuallyOn && goal.dueOn >= today) {
@@ -283,8 +290,8 @@ function ProgressActions({
       hint={
         goal.status === "active"
           ? goal.stages.length > 1
-            ? "Concluir não exige bater o alvo. Se a etapa terminar antes do prazo, a próxima começa no dia seguinte."
-            : "Concluir não exige bater o alvo."
+            ? "Cada etapa conclui sozinha ao bater o alvo, e a próxima começa no dia seguinte. Concluir a meta encerra tudo agora, mesmo sem bater o total."
+            : "A meta conclui sozinha ao bater o alvo. Concluir agora encerra mesmo sem bater."
           : undefined
       }
     />
@@ -305,9 +312,25 @@ function missingText(goal: Goal, stage: GoalStage) {
   return missing > 0 ? `mesmo faltando ${formatCount(missing, unitOf(goal))}` : "agora";
 }
 
+/** Per-objective stages list each objective's count above, so the text only tells status and dates. */
+function describeObjectiveStage(stage: GoalStage, status: StageStatus, index: number) {
+  const due = formatNumericDate(stage.dueOn);
+  const closedOn = stage.completedManuallyOn ? formatNumericDate(stage.completedManuallyOn) : null;
+  if (closedOn && !stage.completed) return `Encerrada com a meta em ${closedOn}`;
+  return {
+    completed: closedOn ? `Concluída em ${closedOn}` : "Concluída",
+    expired: `Expirada em ${due}`,
+    current: `Em andamento · até ${due}`,
+    upcoming: `Começa depois da etapa ${index} · até ${due}`,
+  }[status];
+}
+
 function describeStage(goal: Goal, stage: GoalStage, status: StageStatus, index: number) {
   const target = formatCount(stage.targetCount, unitOf(goal));
   const due = formatNumericDate(stage.dueOn);
+  if (goal.completedManuallyOn && stage.completedManuallyOn && !stage.completed) {
+    return `Encerrada com a meta em ${formatNumericDate(stage.completedManuallyOn)} · ${stage.checksCount} de ${target}`;
+  }
   if (isMilestone(goal, stage)) {
     return {
       completed: stage.completedManuallyOn
@@ -336,8 +359,8 @@ function describeStage(goal: Goal, stage: GoalStage, status: StageStatus, index:
       const warning = upcoming.feasible
         ? ""
         : short
-          ? ` · ${objectiveTitle(goal, short.objectiveId)} tem só ${short.capacity} dias programados`
-          : ` · só ${upcoming.capacity} dias programados na etapa`;
+          ? ` · ${objectiveTitle(goal, short.objectiveId)} tem só ${short.capacity} dias programados para ${short.needed}`
+          : ` · só ${upcoming.capacity} dias programados para ${upcoming.needed}`;
       return `Começa depois da etapa ${index} · ${target} até ${due}${warning}`;
     }
   }
@@ -355,33 +378,79 @@ function CurrentStage({
   today: string;
 }) {
   const started = hasStarted(stage, today);
-  const progress = stage.checksCount / stage.targetCount;
+  const totals = getGoalTotals(goal);
+  const totalTarget = Math.max(1, totals.targetCount);
+  const progress = totals.done / totalTarget;
   const expected = getExpectedProgress(stage, today);
   const missing = Math.max(0, stage.targetCount - stage.checksCount);
   const daysLeft = getDaysLeft(stage, today);
+  const milestone = isMilestone(goal, stage);
+  const single = goal.stages.length === 1;
+  const objectiveTotals = getObjectiveTotals(goal);
 
   return (
     <section className={styles.currentCard} aria-labelledby="current-title">
       <div className={styles.cardHeader}>
         <h2 id="current-title" className={styles.currentLabel}>
-          {goal.stages.length === 1 ? "Etapa única" : "Etapa atual"} · {stage.title}
+          {objectiveTotals
+            ? "Meta · por objetivo"
+            : `Meta · ${formatCount(totals.targetCount, unitOf(goal))}`}
         </h2>
         {started && <PacePill pace={getPace(stage, today)} />}
       </div>
 
-      {isMilestone(goal, stage) ? (
-        <p className={styles.bigCount}>Ainda não alcançado</p>
+      {objectiveTotals && stage.objectiveTargets ? (
+        <ul className={styles.objectiveGoals}>
+          {objectiveTotals.map((item) => (
+            <ObjectiveGoal
+              key={item.objectiveId}
+              item={item}
+              stageTarget={stage.objectiveTargets?.find((t) => t.objectiveId === item.objectiveId)}
+              expectedFraction={started ? expected.fraction : undefined}
+              single={single}
+            />
+          ))}
+        </ul>
       ) : (
-        <p className={styles.bigCount}>
-          <strong>{stage.checksCount}</strong> de {formatCount(stage.targetCount, unitOf(goal))}
+        <>
+          <p className={styles.bigCount}>
+            <strong>{totals.done}</strong> de {formatCount(totals.targetCount, unitOf(goal))}
+          </p>
+          <ProgressBar
+            value={progress}
+            expected={started ? expected.count / totalTarget : undefined}
+            segments={totals.segments ?? undefined}
+            completedUntil={totals.completedUntil}
+            label={`${totals.done} de ${totals.targetCount}`}
+          />
+          <div className={styles.progressLegend}>
+            <span>{Math.round(progress * 100)}% feito</span>
+            {started ? (
+              <span>esperado hoje: {Math.round(expected.count)}</span>
+            ) : (
+              <span>etapa começa em {formatNumericDate(stage.windowStart)}</span>
+            )}
+          </div>
+        </>
+      )}
+
+      {!single && (
+        <p className={styles.stageNow}>
+          <span className={styles.stageNowLabel}>
+            Etapa atual · {stage.position} de {goal.stages.length}
+          </span>
+          {stage.objectiveTargets ? (
+            stage.title && <span>{stage.title}</span>
+          ) : (
+            <span>
+              {milestone
+                ? getStageName(goal, stage)
+                : `${stage.title ? `${stage.title} · chegar` : "Chegar"} a ${formatCount(stage.targetCount, unitOf(goal))}`}
+            </span>
+          )}
         </p>
       )}
-      <ProgressBar
-        value={progress}
-        expected={started ? expected.fraction : undefined}
-        label={`${stage.checksCount} de ${stage.targetCount}`}
-      />
-      {stage.objectiveTargets && (
+      {stage.objectiveTargets && !objectiveTotals && (
         <ul className={styles.objectiveProgress}>
           {stage.objectiveTargets.map((target) => (
             <li key={target.objectiveId} data-done={target.checksCount >= target.targetCount}>
@@ -395,31 +464,28 @@ function CurrentStage({
           ))}
         </ul>
       )}
-      <div className={styles.progressLegend}>
-        <span>{Math.round(progress * 100)}% feito</span>
-        {started ? (
+
+      <div className={styles.deadline}>
+        <span className={styles.deadlineDue}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </svg>
           <span>
-            esperado hoje: {Math.round(expected.count)} ({Math.round(expected.fraction * 100)}%)
+            <strong>
+              {daysLeft} {daysLeft === 1 ? "dia" : "dias"}
+            </strong>{" "}
+            até {formatNumericDate(stage.dueOn)}
           </span>
-        ) : (
-          <span>começa em {formatNumericDate(stage.windowStart)}</span>
+        </span>
+        {!objectiveTotals && (
+          <span className={styles.deadlineMissing}>
+            {milestone
+              ? "marco não alcançado"
+              : `faltam ${formatCount(missing, unitOf(goal))}${single ? "" : " na etapa"}`}
+          </span>
         )}
       </div>
-
-      <dl className={styles.stats}>
-        {!isMilestone(goal, stage) && (
-          <div>
-            <dt>Faltam</dt>
-            <dd>{formatCount(missing, unitOf(goal))}</dd>
-          </div>
-        )}
-        <div>
-          <dt>Prazo</dt>
-          <dd>
-            {daysLeft} {daysLeft === 1 ? "dia" : "dias"} · {formatDayMonth(stage.dueOn)}
-          </dd>
-        </div>
-      </dl>
 
       {goal.progressSource === "entries" ? (
         <>
@@ -428,13 +494,63 @@ function CurrentStage({
             action={addGoalEntry.bind(null, goal.id)}
             today={today}
             minDay={goal.startsOn}
-            milestone={stage.targetCount === 1}
+            milestone={milestone}
           />
         </>
       ) : (
         <Feasibility goal={goal} stage={stage} checks={checks} today={today} started={started} />
       )}
     </section>
+  );
+}
+
+/** One objective of a per-objective goal: its own total, bar and what is left in the stage. */
+function ObjectiveGoal({
+  item,
+  stageTarget,
+  expectedFraction,
+  single,
+}: {
+  item: ObjectiveTotals;
+  stageTarget: ObjectiveTarget | undefined;
+  expectedFraction: number | undefined;
+  single: boolean;
+}) {
+  const total = Math.max(1, item.targetCount);
+  const base = stageTarget?.baseCount ?? 0;
+  const expected =
+    stageTarget && expectedFraction !== undefined
+      ? (base + (stageTarget.targetCount - base) * expectedFraction) / total
+      : undefined;
+  const missing = stageTarget ? Math.max(0, stageTarget.targetCount - stageTarget.checksCount) : 0;
+
+  return (
+    <li className={styles.objectiveGoal}>
+      <div className={styles.objectiveGoalHeader}>
+        <span className={styles.objectiveGoalTitle}>{item.title}</span>
+        <span>
+          <strong>{item.done}</strong> de {item.targetCount}
+        </span>
+      </div>
+      <ProgressBar
+        value={item.done / total}
+        expected={expected}
+        segments={item.segments ?? undefined}
+        completedUntil={item.completedUntil}
+        label={`${item.title}: ${item.done} de ${item.targetCount}`}
+      />
+      <span className={styles.objectiveGoalMeta}>
+        {!stageTarget
+          ? "Não conta nesta etapa"
+          : missing === 0
+            ? single
+              ? "Alvo alcançado ✓"
+              : `Etapa: ${stageTarget.targetCount} alcançado ✓`
+            : single
+              ? `Faltam ${missing}`
+              : `Etapa: chegar a ${stageTarget.targetCount} · faltam ${missing}`}
+      </span>
+    </li>
   );
 }
 
@@ -447,7 +563,7 @@ function EntriesPace({ goal, stage, today }: { goal: Goal; stage: GoalStage; tod
       : `${pace.daysLeft} ${pace.daysLeft === 1 ? "dia" : "dias"}`;
   const rate = Math.round(pace.rate) < 1 ? "menos de 1" : String(Math.round(pace.rate));
   const text =
-    stage.targetCount === 1
+    isMilestone(goal, stage)
       ? `Marque quando alcançar. Faltam ${left} até ${formatDayMonth(stage.dueOn)}.`
       : `Faltam ${formatCount(pace.missing, unitOf(goal))} em ${left} (≈ ${rate} por ${pace.period === "month" ? "mês" : "semana"}).`;
   return <p className={styles.paceNote}>{text}</p>;
@@ -476,6 +592,11 @@ function Feasibility({
     const short = result.perObjective.find((item) => !item.feasible);
     text = short
       ? `Com a frequência atual não dá mais: ${objectiveTitle(goal, short.objectiveId)} precisa de ${short.missing} e só restam ${short.available} dias programados. Adicione dias ao objetivo ou ajuste o prazo.`
+      : result.perObjective.length > 0
+      ? `Dá para chegar: ${result.perObjective
+          .filter((item) => item.missing > 0)
+          .map((item) => `${objectiveTitle(goal, item.objectiveId)} precisa de ${item.missing} dos ${item.available} dias que restam`)
+          .join("; ") || "todos os objetivos já bateram o alvo da etapa"}.`
       : feasible
       ? `Dá para chegar: precisa fazer ${result.missing} dos ${result.available} dias programados que restam (≈ ${perWeek} por semana).`
       : `Com a frequência atual não dá mais: faltam ${result.missing}, restam ${result.available} dias programados. Adicione dias ao objetivo, vincule outro objetivo ou ajuste o prazo.`;
@@ -486,8 +607,8 @@ function Feasibility({
     text = short
       ? `Com a frequência atual não dá: ${objectiveTitle(goal, short.objectiveId)} tem só ${short.capacity} dias programados na etapa.`
       : feasible
-      ? `Dá para chegar: a etapa tem ${capacity} dias programados para um alvo de ${stage.targetCount}.`
-      : `Com a frequência atual não dá: a etapa tem só ${capacity} dias programados para um alvo de ${stage.targetCount}.`;
+      ? `Dá para chegar: a etapa tem ${capacity} dias programados para os ${upcoming.needed} que ela soma ao total.`
+      : `Com a frequência atual não dá: a etapa tem só ${capacity} dias programados para os ${upcoming.needed} que ela soma ao total.`;
   }
 
   return (
@@ -516,9 +637,7 @@ function ClosedSummary({ goal }: { goal: Goal }) {
     active: "",
     completed: goal.completedManuallyOn
       ? `Meta concluída em ${formatNumericDate(goal.completedManuallyOn)}.`
-      : goal.stages.at(-1)?.completedManuallyOn
-        ? "Meta concluída."
-        : "Meta concluída. Todas as etapas chegaram ao alvo.",
+      : "Meta concluída. Todas as etapas chegaram ao alvo.",
     expired: `O prazo acabou em ${formatNumericDate(goal.dueOn)} sem atingir o alvo da última etapa.`,
     abandoned: "Você abandonou esta meta. Os checks dos objetivos continuam guardados.",
   }[goal.status];
@@ -526,6 +645,14 @@ function ClosedSummary({ goal }: { goal: Goal }) {
   return (
     <section className={styles.currentCard}>
       <p className={styles.currentLabel}>{text}</p>
+      {last && (
+        <ProgressBar
+          value={last.checksCount / Math.max(1, last.targetCount)}
+          segments={getGoalTotals(goal).segments ?? undefined}
+          completedUntil={getGoalTotals(goal).completedUntil}
+          label={`${last.checksCount} de ${last.targetCount}`}
+        />
+      )}
       {last && (
         <p className={styles.bigCount}>
           <strong>{last.checksCount}</strong> de {formatCount(last.targetCount, unitOf(goal))}

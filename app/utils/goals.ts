@@ -1,9 +1,21 @@
 import { CHECK_BACKFILL_DAYS } from "./checks";
 import { addDays, diffDays, getWeekday } from "./dates";
 
-export type ObjectiveTarget = { objectiveId: string; targetCount: number; checksCount: number };
+/**
+ * Targets and counts are cumulative since the goal start (stages are milestones: 6 books, then 12).
+ * `baseCount` is the previous stage's target for the same objective, 0 when there is none.
+ */
+export type ObjectiveTarget = {
+  objectiveId: string;
+  targetCount: number;
+  checksCount: number;
+  baseCount?: number;
+};
 
 /**
+ * Cumulative: `targetCount` is the total to reach since the goal start by the end of the stage and
+ * `checksCount` everything done since the goal start through the end of the window. `baseCount` is
+ * the previous stage's target, where the plan expects the stage to begin.
  * With `objectiveTargets`, `targetCount` is their sum and `checksCount` the effective count
  * (see getEffectiveCount), so bars and pace work the same in both modes.
  */
@@ -12,6 +24,7 @@ export type StageProgress = {
   dueOn: string;
   targetCount: number;
   checksCount: number;
+  baseCount: number;
   objectiveTargets?: ObjectiveTarget[];
   completedManuallyOn?: string | null;
 };
@@ -40,8 +53,8 @@ export function getEffectiveCount(targets: ObjectiveTarget[]) {
   return targets.reduce((total, target) => total + Math.min(target.checksCount, target.targetCount), 0);
 }
 
+/** A stage only completes by reaching its target (closing it by hand is not allowed). */
 export function isStageCompleted(stage: StageProgress) {
-  if (stage.completedManuallyOn) return true;
   if (hasObjectiveTargets(stage)) {
     return stage.objectiveTargets.every((target) => target.checksCount >= target.targetCount);
   }
@@ -83,17 +96,26 @@ export function getDaysLeft(stage: StageProgress, today: string) {
   return Math.max(0, diffDays(today, stage.dueOn) + 1);
 }
 
-/** Expected progress = time elapsed in the window / window length (acceptance 2). */
+/** How much the stage adds to the goal according to the plan (its target minus the previous one). */
+export function getStageSpan(stage: StageProgress) {
+  return Math.max(1, stage.targetCount - stage.baseCount);
+}
+
+/**
+ * Expected progress follows the plan line: the previous stage's target at the window start and
+ * this stage's target at its deadline (acceptance 2). `count` is cumulative; `fraction` is the share
+ * of the window already elapsed.
+ */
 export function getExpectedProgress(stage: StageProgress, today: string) {
   const length = diffDays(stage.windowStart, stage.dueOn) + 1;
   const elapsed = Math.min(Math.max(diffDays(stage.windowStart, today), 0), length);
   const fraction = length > 0 ? elapsed / length : 1;
-  return { fraction, count: stage.targetCount * fraction };
+  return { fraction, count: stage.baseCount + (stage.targetCount - stage.baseCount) * fraction };
 }
 
 export function getPace(stage: StageProgress, today: string): Pace {
   const expected = getExpectedProgress(stage, today);
-  const gap = (stage.checksCount - expected.count) / stage.targetCount;
+  const gap = (stage.checksCount - expected.count) / getStageSpan(stage);
   if (gap > 0.05) return "ahead";
   if (gap >= -0.02) return "on-track";
   if (gap >= -0.15) return "slightly-behind";
@@ -179,19 +201,25 @@ export function getStageFeasibility({
   };
 }
 
-/** RN-19 for a stage that has not started: every occurrence in its window against the target. */
+/**
+ * RN-19 for a stage that has not started: every occurrence in its window against what the stage
+ * adds to the plan (`needed`), assuming the previous stage ends right on its own target.
+ */
 export function getUpcomingCapacity(stage: StageProgress, objectives: Required<ScheduledObjective>[]) {
   if (!hasObjectiveTargets(stage)) {
     const capacity = countScheduledDays(objectives, stage.windowStart, stage.dueOn);
-    return { capacity, feasible: capacity >= stage.targetCount, perObjective: [] };
+    const needed = Math.max(0, stage.targetCount - stage.baseCount);
+    return { capacity, needed, feasible: capacity >= needed, perObjective: [] };
   }
   const perObjective = stage.objectiveTargets.map((target) => {
     const objective = objectives.find((item) => item.id === target.objectiveId);
     const capacity = objective ? countScheduledDays([objective], stage.windowStart, stage.dueOn) : 0;
-    return { objectiveId: target.objectiveId, capacity, feasible: capacity >= target.targetCount };
+    const needed = Math.max(0, target.targetCount - (target.baseCount ?? 0));
+    return { objectiveId: target.objectiveId, capacity, needed, feasible: capacity >= needed };
   });
   return {
     capacity: perObjective.reduce((total, item) => total + item.capacity, 0),
+    needed: perObjective.reduce((total, item) => total + item.needed, 0),
     feasible: perObjective.every((item) => item.feasible),
     perObjective,
   };

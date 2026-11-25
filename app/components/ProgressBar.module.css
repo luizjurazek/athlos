@@ -13,6 +13,49 @@
   background: var(--color-text);
 }
 
+.fillDone {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--color-success);
+}
+
+/* A notch in the card color that splits the bar into stage segments. */
+.tick {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--color-surface);
+  transform: translateX(-50%);
+}
+
+.track[data-size="large"] {
+  height: var(--space-5);
+}
+
+/* Labels sit at the end of their segment; on a filled segment they switch to the fill's ink. */
+.segmentLabel {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  font-size: var(--text-caption-2);
+  font-weight: var(--font-weight-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.segmentLabel[data-filled="true"] {
+  color: var(--color-on-primary);
+}
+
 .marker {
   position: absolute;
   top: 50%;
@@ -21,4 +64,8 @@
   border-radius: var(--radius-full);
   background: var(--color-accent);
   transform: translate(-50%, -50%);
+}
+
+.track[data-size="large"] .marker {
+  height: calc(100% + var(--space-2));
 }

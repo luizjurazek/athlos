@@ -9,7 +9,7 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../../../dashboard/day-objectives";
 import ui from "../../../objectives/objectives.module.css";
 import { abandonGoal, saveGoal } from "../../actions";
-import { getGoal, getSelectableObjectives } from "../../data";
+import { getGoal, getObjectiveChecks, getSelectableObjectives } from "../../data";
 import { AbandonGoalPanel } from "../../abandon-goal-panel";
 import { GoalForm } from "../../goal-form";
 
@@ -40,6 +40,18 @@ async function EditGoal({ params }: Pick<PageProps<"/goals/[id]/edit">, "params"
     ),
     getUserTimezone(supabase, user.id),
   ]);
+  const today = getUserToday(timezone);
+  // Linking an objective later recounts its past checks, so every selectable one gets a count.
+  const checks = await getObjectiveChecks(
+    supabase,
+    objectives.map((objective) => objective.id),
+    goal.startsOn,
+    today,
+  );
+  const doneByObjective: Record<string, number> = {};
+  for (const check of checks) {
+    doneByObjective[check.objectiveId] = (doneByObjective[check.objectiveId] ?? 0) + 1;
+  }
 
   return (
     <>
@@ -49,7 +61,8 @@ async function EditGoal({ params }: Pick<PageProps<"/goals/[id]/edit">, "params"
         action={saveGoal.bind(null, id)}
         goal={goal}
         objectives={objectives}
-        today={getUserToday(timezone)}
+        doneByObjective={doneByObjective}
+        today={today}
         submitLabel="Salvar meta"
       />
       {goal.status === "active" && <AbandonGoalPanel action={abandonGoal.bind(null, id)} />}

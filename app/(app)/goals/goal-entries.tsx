@@ -38,6 +38,32 @@ export function GoalEntryForm({
           {state.error}
         </p>
       )}
+      <EntryFields today={today} minDay={minDay} milestone={milestone} />
+      <div className={styles.entryActions}>
+        <button className={ui.button} type="submit" disabled={pending}>
+          {pending ? "Registrando..." : submitLabel}
+        </button>
+        <button className={ui.rowButton} type="button" onClick={() => setOpen(false)}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EntryFields({
+  today,
+  minDay,
+  milestone,
+  entry,
+}: {
+  today: string;
+  minDay: string;
+  milestone: boolean;
+  entry?: Entry;
+}) {
+  return (
+    <>
       <div className={styles.stageFields}>
         <label className={styles.stageField} data-wide={milestone || undefined}>
           <span className={styles.label}>Dia</span>
@@ -46,7 +72,7 @@ export function GoalEntryForm({
               className={ui.input}
               name="day"
               type="date"
-              defaultValue={today}
+              defaultValue={entry?.day ?? today}
               min={minDay}
               max={today}
               required
@@ -65,7 +91,7 @@ export function GoalEntryForm({
                 min={1}
                 max={ENTRY_AMOUNT_MAX}
                 step={1}
-                defaultValue={1}
+                defaultValue={entry?.amount ?? 1}
               />
             </span>
           </label>
@@ -81,39 +107,32 @@ export function GoalEntryForm({
             autoComplete="off"
             placeholder={milestone ? "Ex.: 5km em 31min" : "Ex.: nome do livro"}
             maxLength={ENTRY_NOTE_MAX_LENGTH}
+            defaultValue={entry?.note ?? ""}
           />
         </span>
       </label>
-      <div className={styles.entryActions}>
-        <button className={ui.button} type="submit" disabled={pending}>
-          {pending ? "Registrando..." : submitLabel}
-        </button>
-        <button className={ui.rowButton} type="button" onClick={() => setOpen(false)}>
-          Cancelar
-        </button>
-      </div>
-    </form>
+    </>
   );
 }
 
 type Entry = { id: string; day: string; amount: number; note: string | null };
 
-export function GoalEntryList({
-  entries,
-  unitLabel,
-  removeAction,
-}: {
-  entries: Entry[];
+type EntryActions = {
   unitLabel: string | null;
+  minDay: string;
+  today: string;
+  updateAction: (entryId: string, prev: GoalFormState, formData: FormData) => Promise<GoalFormState>;
   removeAction: (entryId: string) => Promise<GoalFormState>;
-}) {
+};
+
+export function GoalEntryList({ entries, ...actions }: { entries: Entry[] } & EntryActions) {
   if (entries.length === 0) {
-    return <p className={ui.empty}>Nenhum registro nesta etapa ainda.</p>;
+    return <p className={ui.empty}>Nenhum registro ainda.</p>;
   }
   return (
     <ul className={ui.list}>
       {entries.map((entry) => (
-        <EntryRow key={entry.id} entry={entry} unitLabel={unitLabel} removeAction={removeAction} />
+        <EntryRow key={entry.id} entry={entry} {...actions} />
       ))}
     </ul>
   );
@@ -122,14 +141,43 @@ export function GoalEntryList({
 function EntryRow({
   entry,
   unitLabel,
+  minDay,
+  today,
+  updateAction,
   removeAction,
-}: {
-  entry: Entry;
-  unitLabel: string | null;
-  removeAction: (entryId: string) => Promise<GoalFormState>;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const [state, formAction, pending] = useActionState(() => removeAction(entry.id), undefined);
+}: { entry: Entry } & EntryActions) {
+  const [mode, setMode] = useState<"view" | "edit" | "remove">("view");
+  const [removeState, removeFormAction, removing] = useActionState(
+    () => removeAction(entry.id),
+    undefined,
+  );
+  const [editState, editFormAction, saving] = useActionState(
+    updateAction.bind(null, entry.id),
+    undefined,
+  );
+
+  if (mode === "edit") {
+    return (
+      <li className={styles.entryEditRow}>
+        <form action={editFormAction} className={styles.entryForm}>
+          {editState?.error && (
+            <p className={ui.error} role="alert">
+              {editState.error}
+            </p>
+          )}
+          <EntryFields today={today} minDay={minDay} milestone={false} entry={entry} />
+          <div className={styles.entryActions}>
+            <button className={ui.button} type="submit" disabled={saving}>
+              {saving ? "Salvando..." : "Salvar registro"}
+            </button>
+            <button className={ui.rowButton} type="button" onClick={() => setMode("view")}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </li>
+    );
+  }
 
   return (
     <li className={`${ui.row} ${styles.entryRow}`}>
@@ -138,30 +186,43 @@ function EntryRow({
         <span className={ui.rowMeta}>
           {formatShortDate(entry.day)}
           {entry.note && entry.amount > 1 && ` · ${formatCount(entry.amount, unitLabel)}`}
-          {state?.error && ` · ${state.error}`}
+          {removeState?.error && ` · ${removeState.error}`}
         </span>
       </span>
-      {confirming ? (
-        <form action={formAction} className={styles.entryRemove}>
-          <button className={`${styles.textButton} ${ui.danger}`} type="submit" disabled={pending}>
-            {pending ? "Removendo..." : "Remover"}
+      {mode === "remove" ? (
+        <form action={removeFormAction} className={styles.entryRemove}>
+          <button className={`${styles.textButton} ${ui.danger}`} type="submit" disabled={removing}>
+            {removing ? "Removendo..." : "Remover"}
           </button>
-          <button className={styles.textButton} type="button" onClick={() => setConfirming(false)}>
+          <button className={styles.textButton} type="button" onClick={() => setMode("view")}>
             Cancelar
           </button>
         </form>
       ) : (
-        <button
-          className={styles.iconButton}
-          type="button"
-          aria-label="Remover registro"
-          title="Remover registro"
-          onClick={() => setConfirming(true)}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
-          </svg>
-        </button>
+        <span className={styles.entryRemove}>
+          <button
+            className={styles.iconButton}
+            type="button"
+            aria-label="Editar registro"
+            title="Editar registro"
+            onClick={() => setMode("edit")}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" />
+            </svg>
+          </button>
+          <button
+            className={styles.iconButton}
+            type="button"
+            aria-label="Remover registro"
+            title="Remover registro"
+            onClick={() => setMode("remove")}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+            </svg>
+          </button>
+        </span>
       )}
     </li>
   );

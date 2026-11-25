@@ -24,8 +24,9 @@ export type GoalObjective = {
 export type GoalStage = {
   id: string;
   position: number;
-  title: string;
+  title: string | null;
   targetCount: number;
+  baseCount: number;
   dueOn: string;
   windowStart: string;
   windowEnd: string;
@@ -93,6 +94,23 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
     targetsByStage.set(row.stage_id, list);
   }
 
+  // Each stage's plan starts where the previous one ends, per objective too (an objective keeps
+  // the target of the latest earlier stage that had one).
+  function withBaseCounts<T extends { id: string; target_count: number }>(stages: T[]) {
+    const objectiveBases = new Map<string, number>();
+    return stages.map((stage, index) => {
+      const item = {
+        stage,
+        baseCount: index === 0 ? 0 : stages[index - 1].target_count,
+        objectiveBases: new Map(objectiveBases),
+      };
+      for (const target of targetsByStage.get(stage.id) ?? []) {
+        objectiveBases.set(target.objectiveId, target.targetCount);
+      }
+      return item;
+    });
+  }
+
   return goalsResult.data.map((goal) => ({
     id: goal.id,
     title: goal.title,
@@ -103,15 +121,17 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
     status: goal.status,
     progressSource: goal.progress_source,
     completedManuallyOn: goal.completed_manually_on,
-    stages: goal.goal_stages
-      .toSorted((a, b) => a.position - b.position)
-      .map((stage) => {
+    stages: withBaseCounts(goal.goal_stages.toSorted((a, b) => a.position - b.position)).map(
+      ({ stage, baseCount, objectiveBases }) => {
         const stageProgress = progress.get(stage.id);
-        const objectiveTargets = targetsByStage.get(stage.id);
+        const objectiveTargets = targetsByStage
+          .get(stage.id)
+          ?.map((target) => ({ ...target, baseCount: objectiveBases.get(target.objectiveId) ?? 0 }));
         const base = {
           windowStart: stageProgress?.window_start ?? goal.starts_on,
           dueOn: stage.due_on,
           targetCount: stage.target_count,
+          baseCount,
           checksCount: objectiveTargets
             ? getEffectiveCount(objectiveTargets)
             : (stageProgress?.checks_count ?? 0),
@@ -122,12 +142,13 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
           ...base,
           id: stage.id,
           position: stage.position,
-          title: stage.title,
+          title: stage.title || null,
           windowEnd: stageProgress?.window_end ?? stage.due_on,
           completed: isStageCompleted(base),
           completedAt: stage.completed_at,
         };
-      }),
+      },
+    ),
     objectives: goal.goal_objectives
       .flatMap(({ objectives }) => (objectives ? [objectives] : []))
       .map((objective) => ({
@@ -141,30 +162,97 @@ export async function getGoals(supabase: Client, goalId?: string): Promise<Goal[
   }));
 }
 
-/**
- * The latest stage closed by hand can be reopened while its deadline has not passed, as long as
- * no later stage is completed and the goal itself was not closed by hand.
- */
-export function getReopenableStage(goal: Goal, today: string) {
-  if (goal.completedManuallyOn || goal.status === "abandoned") return null;
-  const lastCompleted = goal.stages.findLastIndex((stage) => stage.completed);
-  const stage = goal.stages[lastCompleted];
-  if (!stage?.completedManuallyOn || stage.dueOn < today) return null;
-  // Entry stages closed by reaching the target reopen by removing an entry, not from here.
-  if (goal.progressSource === "entries" && stage.checksCount >= stage.targetCount) return null;
-  return stage;
-}
-
 export async function getGoal(supabase: Client, goalId: string) {
   const [goal] = await getGoals(supabase, goalId);
   return goal ?? null;
 }
 
+type ProgressEvent = { day: string; amount: number; objectiveId?: string };
+
+function firstDayReaching(events: ProgressEvent[], target: number, objectiveId?: string) {
+  let total = 0;
+  for (const event of events) {
+    if (objectiveId && event.objectiveId !== objectiveId) continue;
+    total += event.amount;
+    if (total >= target) return event.day;
+  }
+  return null;
+}
+
+/** With per-objective targets the stage is reached when the last objective reaches its own. */
+function getReachDay(stage: GoalStage, events: ProgressEvent[]) {
+  if (!stage.objectiveTargets?.length) return firstDayReaching(events, stage.targetCount);
+  let latest = "";
+  for (const target of stage.objectiveTargets) {
+    const day = firstDayReaching(events, target.targetCount, target.objectiveId);
+    if (!day) return null;
+    if (day > latest) latest = day;
+  }
+  return latest;
+}
+
 /**
- * Status is derived on read (no cron, task 07). When the derived value differs from what is stored,
- * the goal status and the stages' completed_at are written back so other readers see it too.
+ * A stage only completes by reaching its target, and it closes on that day so the next stage
+ * starts right after instead of waiting for the original deadline. Adding, editing or removing an
+ * entry or a check can move that day or undo it, so whenever a stage's count disagrees with its
+ * stored closing day, every stage of the goal is recomputed from the raw entries/checks. A goal
+ * completed by hand keeps its stages frozen. Returns whether anything was written.
  */
-export async function syncGoalStatuses(supabase: Client, goals: Goal[], today: string) {
+async function syncStageClosures(supabase: Client, goal: Goal) {
+  if (goal.completedManuallyOn || goal.status === "abandoned") return false;
+  const outOfSync = goal.stages.some((stage) => stage.completed !== Boolean(stage.completedManuallyOn));
+  if (!outOfSync) return false;
+
+  const events: ProgressEvent[] =
+    goal.progressSource === "entries"
+      ? (await getGoalEntries(supabase, goal.id, goal.startsOn, goal.dueOn)).map((entry) => ({
+          day: entry.day,
+          amount: entry.amount,
+        }))
+      : (
+          await getObjectiveChecks(
+            supabase,
+            goal.objectives.map((objective) => objective.id),
+            goal.startsOn,
+            goal.dueOn,
+          )
+        ).map((check) => ({ day: check.day, amount: 1, objectiveId: check.objectiveId }));
+  events.sort((a, b) => a.day.localeCompare(b.day));
+
+  const writes = goal.stages.flatMap((stage) => {
+    const reached = getReachDay(stage, events);
+    const closeOn = reached && reached <= stage.dueOn ? reached : null;
+    if (closeOn === stage.completedManuallyOn) return [];
+    return [
+      supabase
+        .from("goal_stages")
+        .update({
+          completed_manually_on: closeOn,
+          completed_at: closeOn ? new Date().toISOString() : null,
+        })
+        .eq("id", stage.id),
+    ];
+  });
+  const results = await Promise.all(writes);
+  for (const { error } of results) {
+    if (error) console.error("Failed to sync stage closure", error);
+  }
+  return writes.length > 0;
+}
+
+/**
+ * Status is derived on read (no cron, task 07). Stage closures are synced first (they move the
+ * stage windows, so those goals are read again); then, when the derived status differs from what
+ * is stored, the goal status and the stages' completed_at are written back so other readers see it.
+ */
+export async function syncGoalStatuses(supabase: Client, loaded: Goal[], today: string) {
+  const changed = await Promise.all(loaded.map((goal) => syncStageClosures(supabase, goal)));
+  const goals = await Promise.all(
+    loaded.map(async (goal, index) =>
+      changed[index] ? ((await getGoal(supabase, goal.id)) ?? goal) : goal,
+    ),
+  );
+
   const writes: PromiseLike<{ error: unknown }>[] = [];
   const synced = goals.map((goal) => {
     const status = getGoalStatus(goal.stages, today, goal.status, goal.completedManuallyOn);

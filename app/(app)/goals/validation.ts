@@ -68,6 +68,43 @@ function validateObjectiveTargets(stage: StageDraft, objectiveIds: string[]) {
   return undefined;
 }
 
+/** The stage's cumulative target: its own number, or the sum of its per-objective targets. */
+export function getStageTotal(stage: StageDraft, progressSource: ProgressSource, objectiveIds: string[]) {
+  if (progressSource === "checks" && stage.mode === "per-objective") {
+    const targets = getObjectiveTargets(stage, objectiveIds);
+    return targets.length > 0 ? targets.reduce((sum, target) => sum + target.targetCount, 0) : null;
+  }
+  return parseTarget(stage.target);
+}
+
+/**
+ * Targets are cumulative (stage 1 reads 6 books, stage 2 reads up to 12), so each stage must end
+ * above the previous one, and no objective may go back below what an earlier stage asked of it.
+ */
+function validateCumulativeTargets(draft: GoalDraft) {
+  const objectiveBases = new Map<string, number>();
+  let previousTotal: number | null = null;
+  return draft.stages.map((stage): string | undefined => {
+    const total = getStageTotal(stage, draft.progressSource, draft.objectiveIds);
+    const perObjective = draft.progressSource === "checks" && stage.mode === "per-objective";
+    const targets = perObjective ? getObjectiveTargets(stage, draft.objectiveIds) : [];
+    const lowered = targets
+      .map((target) => ({ ...target, base: objectiveBases.get(target.objectiveId) ?? 0 }))
+      .find((target) => target.targetCount < target.base);
+    for (const target of targets) objectiveBases.set(target.objectiveId, target.targetCount);
+
+    const previous = previousTotal;
+    if (total !== null) previousTotal = total;
+    if (lowered) {
+      return `O alvo de cada objetivo é acumulado: não pode ficar abaixo do da etapa anterior (${lowered.base}).`;
+    }
+    if (total !== null && previous !== null && total <= previous) {
+      return `O alvo é acumulado: precisa ser maior que o da etapa anterior (${previous}).`;
+    }
+    return undefined;
+  });
+}
+
 export function validateStageDates(startsOn: string, stages: StageDraft[]) {
   return stages.map((stage, index): string | undefined => {
     if (!isDay(stage.dueOn)) return "Escolha o prazo da etapa.";
@@ -94,11 +131,11 @@ export function validateGoal(draft: GoalDraft): GoalErrors {
   if (draft.stages.length === 0) errors.stagesList = "Adicione pelo menos uma etapa.";
 
   const dateErrors = validateStageDates(draft.startsOn, draft.stages);
+  const cumulativeErrors = validateCumulativeTargets(draft);
   errors.stages = draft.stages.map((stage, index) => {
     const stageErrors: StageErrors = {};
     const stageTitle = stage.title.trim();
-    if (!stageTitle) stageErrors.title = "Dê um nome à etapa.";
-    else if (stageTitle.length > STAGE_TITLE_MAX_LENGTH) {
+    if (stageTitle.length > STAGE_TITLE_MAX_LENGTH) {
       stageErrors.title = `O nome pode ter no máximo ${STAGE_TITLE_MAX_LENGTH} caracteres.`;
     }
     if (draft.progressSource === "checks" && stage.mode === "per-objective") {
@@ -107,6 +144,7 @@ export function validateGoal(draft: GoalDraft): GoalErrors {
     } else if (parseTarget(stage.target) === null) {
       stageErrors.target = `O alvo precisa ser um número inteiro de 1 a ${STAGE_TARGET_MAX}.`;
     }
+    if (!stageErrors.target && cumulativeErrors[index]) stageErrors.target = cumulativeErrors[index];
     if (dateErrors[index]) stageErrors.dueOn = dateErrors[index];
     return stageErrors;
   });

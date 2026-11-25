@@ -10,8 +10,6 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../dashboard/day-objectives";
 import {
   getGoal,
-  getGoalEntries,
-  getReopenableStage,
   type Goal,
   type GoalStage,
 } from "./data";
@@ -101,7 +99,7 @@ export async function saveGoal(
       const targets =
         draft.progressSource === "checks" ? stageTargets(stage, draft.objectiveIds) : null;
       return {
-        title: stage.title.trim(),
+        title: stage.title.trim() || null,
         target_count: targets
           ? targets.reduce((total, target) => total + target.targetCount, 0)
           : parseTarget(stage.target),
@@ -151,7 +149,7 @@ function checkCompletedStages(current: Goal, draft: GoalDraft) {
     const submitted = draft.stages[stage.position - 1];
     const unchanged =
       submitted &&
-      submitted.title.trim() === stage.title &&
+      (submitted.title.trim() || null) === stage.title &&
       sameTargets(current, stage, submitted, draft.objectiveIds) &&
       submitted.dueOn === stage.dueOn;
     if (!unchanged) {
@@ -197,24 +195,6 @@ function getStartedCurrentStage(goal: Goal, today: string) {
 
 const UPDATE_ERROR = "Não foi possível atualizar a meta. Tente de novo.";
 
-/** Closes the current stage by hand, even short of its target (the next one starts tomorrow). */
-export async function completeStage(goalId: string): Promise<GoalFormState> {
-  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
-  if (!goal || goal.status !== "active") return { error: "Esta meta não está ativa." };
-  const stage = getStartedCurrentStage(goal, today);
-  if (!stage) return { error: "Nenhuma etapa em andamento para concluir." };
-
-  const { error } = await supabase
-    .from("goal_stages")
-    .update({ completed_manually_on: today, completed_at: new Date().toISOString() })
-    .eq("id", stage.id);
-  if (error) {
-    console.error("Failed to complete stage", error);
-    return { error: UPDATE_ERROR };
-  }
-  redirect(`/goals/${goalId}`);
-}
-
 /** Closes the whole goal by hand; the stage in progress is closed with it. */
 export async function completeGoal(goalId: string): Promise<GoalFormState> {
   const { supabase, goal, today } = await loadGoalForUpdate(goalId);
@@ -242,22 +222,6 @@ export async function completeGoal(goalId: string): Promise<GoalFormState> {
   redirect(`/goals/${goalId}`);
 }
 
-export async function reopenStage(goalId: string): Promise<GoalFormState> {
-  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
-  const stage = goal ? getReopenableStage(goal, today) : null;
-  if (!stage) return { error: "Esta etapa não pode mais ser reaberta." };
-
-  const { error } = await supabase
-    .from("goal_stages")
-    .update({ completed_manually_on: null, completed_at: null })
-    .eq("id", stage.id);
-  if (error) {
-    console.error("Failed to reopen stage", error);
-    return { error: UPDATE_ERROR };
-  }
-  redirect(`/goals/${goalId}`);
-}
-
 export async function reopenGoal(goalId: string): Promise<GoalFormState> {
   const { supabase, goal, today } = await loadGoalForUpdate(goalId);
   if (!goal?.completedManuallyOn || goal.dueOn < today) {
@@ -275,56 +239,9 @@ export async function reopenGoal(goalId: string): Promise<GoalFormState> {
   redirect(`/goals/${goalId}`);
 }
 
-async function insertEntry(
-  goalId: string,
-  { day, amount, note }: { day?: string; amount: number; note: string | null },
-) {
-  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
-  const entry = { day: day ?? today, amount, note };
-  if (!goal || goal.progressSource !== "entries" || goal.status !== "active") {
-    return { error: "Esta meta não aceita registros agora." };
-  }
-  if (!isDay(entry.day) || entry.day > today) return { error: "Escolha um dia até hoje." };
-  if (entry.day < goal.startsOn) return { error: "O dia precisa ser depois do início da meta." };
+type EntryInput = { day: string; amount: number; note: string | null };
 
-  const { error } = await supabase.from("goal_entries").insert({ goal_id: goalId, ...entry });
-  if (error) {
-    console.error("Failed to add goal entry", error);
-    return { error: "Não foi possível registrar. Tente de novo." };
-  }
-  await closeReachedStage(supabase, goalId, entry.day);
-  return null;
-}
-
-type Supabase = Awaited<ReturnType<typeof loadGoalForUpdate>>["supabase"];
-
-function findStageOn(goal: Goal, day: string) {
-  return goal.stages.find((stage) => stage.windowStart <= day && day <= stage.windowEnd);
-}
-
-/**
- * An entry stage that reaches its target closes on the day of its last entry, so the next stage
- * starts right away instead of waiting for the original deadline (e.g. "ran 5km" ahead of time).
- */
-async function closeReachedStage(supabase: Supabase, goalId: string, day: string) {
-  const goal = await getGoal(supabase, goalId).catch(() => null);
-  const stage = goal && findStageOn(goal, day);
-  if (!stage || stage.completedManuallyOn || stage.checksCount < stage.targetCount) return;
-
-  const entries = await getGoalEntries(supabase, goalId, stage.windowStart, stage.dueOn);
-  const closedOn = entries[0]?.day ?? day;
-  const { error } = await supabase
-    .from("goal_stages")
-    .update({ completed_manually_on: closedOn, completed_at: new Date().toISOString() })
-    .eq("id", stage.id);
-  if (error) console.error("Failed to close reached stage", error);
-}
-
-export async function addGoalEntry(
-  goalId: string,
-  _prev: GoalFormState,
-  formData: FormData,
-): Promise<GoalFormState> {
+function readEntry(formData: FormData): EntryInput | { error: string } {
   const read = (name: string) => {
     const value = formData.get(name);
     return typeof value === "string" ? value.trim() : "";
@@ -337,7 +254,40 @@ export async function addGoalEntry(
   if (note.length > ENTRY_NOTE_MAX_LENGTH) {
     return { error: `A nota pode ter no máximo ${ENTRY_NOTE_MAX_LENGTH} caracteres.` };
   }
-  const failure = await insertEntry(goalId, { day: read("day"), amount, note: note || null });
+  return { day: read("day"), amount, note: note || null };
+}
+
+function checkEntry(goal: Goal | null, entry: EntryInput, today: string) {
+  if (!goal || goal.progressSource !== "entries" || goal.status !== "active") {
+    return { error: "Esta meta não aceita registros agora." };
+  }
+  if (!isDay(entry.day) || entry.day > today) return { error: "Escolha um dia até hoje." };
+  if (entry.day < goal.startsOn) return { error: "O dia precisa ser depois do início da meta." };
+  return null;
+}
+
+async function insertEntry(goalId: string, input: Omit<EntryInput, "day"> & { day?: string }) {
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  const entry = { ...input, day: input.day || today };
+  const invalid = checkEntry(goal, entry, today);
+  if (invalid) return invalid;
+
+  const { error } = await supabase.from("goal_entries").insert({ goal_id: goalId, ...entry });
+  if (error) {
+    console.error("Failed to add goal entry", error);
+    return { error: "Não foi possível registrar. Tente de novo." };
+  }
+  return null;
+}
+
+export async function addGoalEntry(
+  goalId: string,
+  _prev: GoalFormState,
+  formData: FormData,
+): Promise<GoalFormState> {
+  const entry = readEntry(formData);
+  if ("error" in entry) return entry;
+  const failure = await insertEntry(goalId, entry);
   if (failure) return failure;
   redirect(`/goals/${goalId}`);
 }
@@ -350,20 +300,32 @@ export async function quickAddGoalEntry(goalId: string): Promise<GoalFormState> 
   return undefined;
 }
 
-export async function deleteGoalEntry(goalId: string, entryId: string): Promise<GoalFormState> {
-  const { supabase, goal } = await loadGoalForUpdate(goalId);
-  const { data: entry } = await supabase
-    .from("goal_entries")
-    .select("day, amount")
-    .eq("id", entryId)
-    .maybeSingle();
-  // A stage closed by reaching its target reopens when this entry takes it below the target again.
-  const stage = goal && entry ? findStageOn(goal, entry.day) : undefined;
-  const reopens =
-    stage?.completedManuallyOn &&
-    stage.checksCount >= stage.targetCount &&
-    stage.checksCount - (entry?.amount ?? 0) < stage.targetCount;
+export async function updateGoalEntry(
+  goalId: string,
+  entryId: string,
+  _prev: GoalFormState,
+  formData: FormData,
+): Promise<GoalFormState> {
+  const entry = readEntry(formData);
+  if ("error" in entry) return entry;
+  const { supabase, goal, today } = await loadGoalForUpdate(goalId);
+  const invalid = checkEntry(goal, entry, today);
+  if (invalid) return invalid;
 
+  const { error } = await supabase
+    .from("goal_entries")
+    .update(entry)
+    .eq("id", entryId)
+    .eq("goal_id", goalId);
+  if (error) {
+    console.error("Failed to update goal entry", error);
+    return { error: "Não foi possível salvar o registro. Tente de novo." };
+  }
+  redirect(`/goals/${goalId}`);
+}
+
+export async function deleteGoalEntry(goalId: string, entryId: string): Promise<GoalFormState> {
+  const { supabase } = await loadGoalForUpdate(goalId);
   const { error } = await supabase
     .from("goal_entries")
     .delete()
@@ -372,13 +334,6 @@ export async function deleteGoalEntry(goalId: string, entryId: string): Promise<
   if (error) {
     console.error("Failed to delete goal entry", error);
     return { error: "Não foi possível remover o registro. Tente de novo." };
-  }
-  if (reopens && stage) {
-    const { error: reopenError } = await supabase
-      .from("goal_stages")
-      .update({ completed_manually_on: null, completed_at: null })
-      .eq("id", stage.id);
-    if (reopenError) console.error("Failed to reopen stage", reopenError);
   }
   redirect(`/goals/${goalId}`);
 }

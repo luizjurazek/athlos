@@ -469,37 +469,52 @@
   gap: var(--space-2);
 }
 
+/* The +1 sits over the card's bottom-right corner (a button cannot live inside the card link);
+   the card's count line reserves that room. */
 .quickEntryRow {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
+  position: relative;
 }
 
-.quickEntryRow > a {
-  flex: 1;
-  min-width: 0;
-}
-
+/* Tonal capsule like iOS secondary buttons: 32px visible, 44px touch area through ::before. */
 .quickEntryButton {
+  position: absolute;
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + (var(--touch-target) - var(--space-8)) / 2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  width: calc(var(--touch-target) + var(--space-2));
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  gap: var(--space-1);
+  height: var(--space-8);
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--color-fill);
   color: var(--color-text);
   font: inherit;
-  font-size: var(--text-body);
+  font-size: var(--text-footnote);
   font-weight: var(--font-weight-strong);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   cursor: pointer;
-  transition: transform var(--duration-fast) var(--ease-standard);
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.quickEntryButton::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--space-8) - var(--touch-target)) / 2) calc(var(--space-1) * -1);
+}
+
+@media (hover: hover) {
+  .quickEntryButton:hover {
+    background: var(--color-fill-strong);
+  }
 }
 
 .quickEntryButton:active {
-  transform: scale(0.96);
+  transform: scale(0.94);
 }
 
 .quickEntryButton:focus-visible {
@@ -508,11 +523,11 @@
 }
 
 .quickEntryButton svg {
-  width: var(--space-5);
-  height: var(--space-5);
+  width: var(--space-3);
+  height: var(--space-3);
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.5;
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
 }

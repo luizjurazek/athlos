@@ -37,7 +37,7 @@ export async function GoalsSummary({ today }: { today: string }) {
               {card.quickEntry ? (
                 <QuickEntryGoal card={card} />
               ) : (
-                <GoalCard card={card} footer="remaining" />
+                <GoalCard card={card} showObjectives={false} />
               )}
             </li>
           );
