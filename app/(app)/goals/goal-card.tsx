@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProgressBar, type ProgressSegment } from "@/app/components/ProgressBar";
-import { formatNumericDate } from "@/app/utils/dates";
+import { diffDays, formatNumericDate, formatShortDate } from "@/app/utils/dates";
 import {
   getDaysLeft,
   getExpectedProgress,
@@ -124,6 +124,23 @@ export function describeCurrentStage(goal: Goal, stage: GoalStage, today: string
   return parts.join(" · ");
 }
 
+/**
+ * Day the goal was completed: closed by hand, or the day its last stage reached the target
+ * (stage closures are stored as `completed_manually_on`). Null while the goal is not completed.
+ */
+export function getCompletedOn(goal: Goal) {
+  if (goal.status !== "completed") return null;
+  return goal.completedManuallyOn ?? goal.stages.at(-1)?.completedManuallyOn ?? null;
+}
+
+/** "Meta concluída hoje!" style note for a goal completed in the last few days. */
+export function describeCompletion(completedOn: string, today: string) {
+  const ago = diffDays(completedOn, today);
+  if (ago === 0) return "Meta concluída hoje! Parabéns.";
+  if (ago === 1) return "Meta concluída ontem! Parabéns.";
+  return `Meta concluída em ${formatShortDate(completedOn)}. Parabéns!`;
+}
+
 export function toGoalCard(goal: Goal, today: string): GoalCardData {
   const stage = getCurrentStage(goal, today);
   const totals = getGoalTotals(goal);
@@ -184,9 +201,12 @@ export function GoalCard({
   card,
   showObjectives = true,
   reserveAction = false,
+  celebration,
 }: {
   card: GoalCardData;
   showObjectives?: boolean;
+  /** Highlights a goal completed in the last days, with this message on top. */
+  celebration?: string;
   /** Leaves room on the count line for a button laid over the card (the +1 on Hoje). */
   reserveAction?: boolean;
 }) {
@@ -195,7 +215,17 @@ export function GoalCard({
       className={styles.card}
       href={`/goals/${card.id}`}
       data-action={reserveAction || undefined}
+      data-celebrate={celebration ? true : undefined}
     >
+      {celebration && (
+        <span className={styles.celebration}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="m8 12 3 3 5-6" />
+          </svg>
+          {celebration}
+        </span>
+      )}
       <span className={styles.cardHeader}>
         <span className={styles.cardTitle}>{card.title}</span>
         {card.pace ? <PacePill pace={card.pace} /> : <StatusPill status={card.status} />}

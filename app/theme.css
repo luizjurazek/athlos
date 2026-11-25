@@ -68,6 +68,7 @@
   --color-warning: light-dark(#b25000, #ffd60a);
   --color-danger-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
   --color-success-bg: color-mix(in srgb, var(--color-success) 12%, transparent);
+  --color-success-border: color-mix(in srgb, var(--color-success) 35%, transparent);
   --color-warning-bg: color-mix(in srgb, var(--color-warning) 12%, transparent);
 
   /*
