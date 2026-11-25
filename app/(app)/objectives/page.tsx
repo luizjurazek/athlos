@@ -5,7 +5,11 @@ import { cookies } from "next/headers";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { formatWeekdays } from "@/app/utils/weekdays";
+import { getUserToday } from "@/app/utils/dates";
+import { getUserTimezone } from "../dashboard/day-objectives";
 import { ObjectiveBadge } from "./objective-badge";
+import { StreakBadge } from "./streak-badge";
+import { getObjectiveStreaks, type ObjectiveStreak } from "./streaks";
 import type { Objective } from "./options";
 import styles from "./objectives.module.css";
 
@@ -33,12 +37,12 @@ export default function ObjectivesPage() {
 }
 
 async function ObjectivesList() {
-  await requireUser();
+  const user = await requireUser();
   const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("objectives")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const [{ data, error }, timezone] = await Promise.all([
+    supabase.from("objectives").select("*").order("created_at", { ascending: true }),
+    getUserTimezone(supabase, user.id),
+  ]);
 
   if (error) {
     console.error("Failed to load objectives", error);
@@ -47,12 +51,21 @@ async function ObjectivesList() {
 
   const active = data.filter((objective) => !objective.archived_at);
   const archived = data.filter((objective) => objective.archived_at);
+  const streaks = await getObjectiveStreaks(
+    supabase,
+    active,
+    getUserToday(timezone),
+    timezone,
+  ).catch((streakError: unknown) => {
+    console.error("Failed to load streaks", streakError);
+    return {};
+  });
 
   return (
     <>
       <section className={styles.section}>
         {active.length > 0 ? (
-          <ObjectiveRows objectives={active} />
+          <ObjectiveRows objectives={active} streaks={streaks} />
         ) : (
           <p className={styles.empty}>
             Nenhum objetivo ainda. Crie o primeiro para montar sua rotina.
@@ -73,7 +86,13 @@ async function ObjectivesList() {
   );
 }
 
-function ObjectiveRows({ objectives }: { objectives: Objective[] }) {
+function ObjectiveRows({
+  objectives,
+  streaks = {},
+}: {
+  objectives: Objective[];
+  streaks?: Record<string, ObjectiveStreak>;
+}) {
   return (
     <ul className={`${styles.list} ${styles.cardGrid}`}>
       {objectives.map((objective) => (
@@ -81,7 +100,10 @@ function ObjectiveRows({ objectives }: { objectives: Objective[] }) {
           <Link className={styles.row} href={`/objectives/${objective.id}`}>
             <ObjectiveBadge color={objective.color} icon={objective.icon} />
             <span className={styles.rowText}>
-              <span className={styles.rowTitle}>{objective.title}</span>
+              <span className={styles.rowTitleLine}>
+                <span className={styles.rowTitle}>{objective.title}</span>
+                <StreakBadge count={streaks[objective.id]?.current ?? 0} />
+              </span>
               <span className={styles.rowMeta}>
                 {formatWeekdays(objective.weekdays)}
                 {objective.reschedulable && " · Pode mudar de dia"}

@@ -297,6 +297,14 @@
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
+.rowTitleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
 .checkRow[aria-checked="true"] .rowTitle {
   color: var(--color-text-muted);
   text-decoration: line-through;

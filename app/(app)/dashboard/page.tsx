@@ -34,6 +34,7 @@ import { AddObjectiveButton } from "./day-change-sheets";
 import { DayHeading } from "./day-heading";
 import { StripDayLink, StripScroller } from "./strip-scroller";
 import { GoalsSummary } from "./goals-summary";
+import { getObjectiveStreaks } from "../objectives/streaks";
 import { PendingPanel, TodayView } from "./today-view";
 import styles from "./dashboard.module.css";
 
@@ -196,6 +197,14 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     );
   }
 
+  // Streaks are a bonus: if they fail to load, the day still renders without the flames.
+  const streaks = await getObjectiveStreaks(supabase, data.active, today, timezone).catch(
+    (error: unknown) => {
+      console.error("Failed to load streaks", error);
+      return {};
+    },
+  );
+
   return (
     <>
       {header}
@@ -209,6 +218,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
           blocked={data.blocked}
           pickerRange={data.pickerRange}
           dayOptions={data.dayOptions}
+          streaks={streaks}
           goals={goals}
         />
       </PendingSwap>

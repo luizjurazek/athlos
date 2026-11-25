@@ -11,6 +11,8 @@ import { CHECK_BACKFILL_DAYS } from "@/app/utils/checks";
 import { formatShortDate, getWeekday } from "@/app/utils/dates";
 import { WEEKDAYS } from "@/app/utils/weekdays";
 import { ObjectiveBadge } from "../objectives/objective-badge";
+import { StreakBadge } from "../objectives/streak-badge";
+import type { ObjectiveStreak } from "../objectives/streaks";
 import { setCheck, type CheckFailure } from "./actions";
 import {
   ActionsSheet,
@@ -76,6 +78,7 @@ export function TodayView({
   blocked,
   pickerRange,
   dayOptions,
+  streaks = {},
   goals,
 }: {
   day: string;
@@ -85,6 +88,7 @@ export function TodayView({
   blocked: Record<string, BlockedDays>;
   pickerRange: { from: string; to: string };
   dayOptions: DayOption[];
+  streaks?: Record<string, ObjectiveStreak>;
   goals?: ReactNode;
 }) {
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -201,6 +205,13 @@ export function TodayView({
 
   const done = items.filter((item) => item.checked).length;
 
+  // On today the flame follows the optimistic check right away; other days show the stored streak.
+  function streakOf(item: DayObjective) {
+    const streak = streaks[item.id];
+    if (!streak) return 0;
+    return day === today ? streak.withoutToday + (item.checked ? 1 : 0) : streak.current;
+  }
+
   return (
     <>
       <aside className={styles.aside}>
@@ -257,7 +268,10 @@ export function TodayView({
                   </svg>
                 </span>
                 <span className={styles.rowText}>
-                  <span className={styles.rowTitle}>{item.title}</span>
+                  <span className={styles.rowTitleLine}>
+                    <span className={styles.rowTitle}>{item.title}</span>
+                    <StreakBadge count={streakOf(item)} />
+                  </span>
                   <span className={styles.rowMeta}>
                     {item.addition ? (
                       <span className={styles.movedBadge}>
