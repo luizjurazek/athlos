@@ -864,3 +864,15 @@ a.exerciseRow:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.savedRow {
+  display: flex;
+  align-items: center;
+  padding-left: var(--space-4);
+}
+
+.savedRow > .exerciseRow {
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--space-3);
+}

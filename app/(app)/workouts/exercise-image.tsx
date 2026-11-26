@@ -33,7 +33,7 @@ export function ExerciseImage({ src, size = "sm" }: { src: string | null; size?:
 }
 
 /** Large photo for the preview; a broken link shows the placeholder instead of an empty box. */
-export function PreviewImage({ src, alt }: { src: string; alt: string }) {
+export function PreviewImage({ src, alt, onError }: { src: string; alt: string; onError?: () => void }) {
   const [broken, setBroken] = useState(false);
   if (broken) {
     return (
@@ -53,7 +53,7 @@ export function PreviewImage({ src, alt }: { src: string; alt: string }) {
       width={640}
       height={480}
       sizes="(min-width: 640px) 480px, 100vw"
-      onError={() => setBroken(true)}
+      onError={() => (onError ? onError() : setBroken(true))}
     />
   );
 }

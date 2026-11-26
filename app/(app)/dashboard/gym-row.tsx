@@ -12,7 +12,7 @@ import {
   validateLoad,
   type LoadValues,
 } from "@/app/utils/workout-loads";
-import { ExerciseImage } from "../workouts/exercise-image";
+import { ExercisePreviewSheet, getExerciseImages, PreviewThumb } from "../workouts/exercise-preview";
 import { LoadFields, toLoadDraft, toLoadValues, type LoadDraft } from "../workouts/load-fields";
 import { saveDayLoad, setDayWorkout, type DayWorkoutFailure } from "./actions";
 import type { GymDay, GymExercise, GymWorkout } from "./gym-day";
@@ -94,6 +94,8 @@ export function GymPanel({
   const expanded = toggled ?? (asking || stored);
   const [swapOpen, setSwapOpen] = useState(false);
   const [editing, setEditing] = useState<GymExercise | null>(null);
+  // Full-size photos; `fromEditor` returns to the load editor instead of closing.
+  const [photo, setPhoto] = useState<{ exercise: GymExercise; fromEditor: boolean } | null>(null);
   const [doneIds, setDoneIds] = useState<string[]>([]);
 
   const [loads, setOptimisticLoad] = useOptimistic(
@@ -185,7 +187,6 @@ export function GymPanel({
                       const done = doneIds.includes(exercise.id);
                       const content = (
                         <>
-                          <ExerciseImage src={exercise.imageUrl} />
                           <span className={styles.rowText}>
                             <span className={styles.gymExerciseName}>{exercise.name}</span>
                             {exercise.current && (
@@ -221,6 +222,11 @@ export function GymPanel({
                               </span>
                             </button>
                           )}
+                          <PreviewThumb
+                            src={exercise.imageUrl}
+                            name={exercise.name}
+                            onOpen={() => setPhoto({ exercise, fromEditor: false })}
+                          />
                           {future ? (
                             <div className={styles.gymExerciseBody}>{content}</div>
                           ) : (
@@ -254,11 +260,42 @@ export function GymPanel({
           workout={workout}
           day={day}
           onClose={() => setEditing(null)}
+          onPreview={() => {
+            setPhoto({ exercise: editing, fromEditor: true });
+            setEditing(null);
+          }}
           onSave={(load) => {
             saveLoad(editing, load);
             setEditing(null);
           }}
         />
+      )}
+      {photo && (
+        <ExercisePreviewSheet
+          title={photo.exercise.name}
+          subtitle={workout ? workoutName(workout) : formatShortDate(day)}
+          images={getExerciseImages(photo.exercise.imageUrl)}
+          onClose={() => setPhoto(null)}
+        >
+          <div className={styles.sheetActions}>
+            {photo.fromEditor ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setEditing(photo.exercise);
+                  setPhoto(null);
+                }}
+              >
+                Voltar para a carga
+              </button>
+            ) : (
+              <button type="button" className={styles.secondaryButton} onClick={() => setPhoto(null)}>
+                Fechar
+              </button>
+            )}
+          </div>
+        </ExercisePreviewSheet>
       )}
       {swapOpen && workout && (
         <SwapWorkoutSheet
@@ -410,12 +447,14 @@ function LoadEditorSheet({
   workout,
   day,
   onClose,
+  onPreview,
   onSave,
 }: {
   exercise: GymExercise;
   workout: GymWorkout | null;
   day: string;
   onClose: () => void;
+  onPreview: () => void;
   onSave: (load: LoadValues) => void;
 }) {
   const [draft, setDraft] = useState<LoadDraft>(toLoadDraft(exercise.current));
@@ -441,6 +480,9 @@ function LoadEditorSheet({
       subtitle={`${workout ? `Treino ${workout.label} · ` : ""}${formatShortDate(day)}`}
       onClose={onClose}
     >
+      {exercise.imageUrl && (
+        <PreviewThumb src={exercise.imageUrl} name={exercise.name} size="md" onOpen={onPreview} />
+      )}
       {baseline && (
         <p className={styles.sheetInfo}>
           {dayVersion ? "Antes" : "Atual"}: {formatLoad(baseline)} desde {formatDayMonth(baseline.effectiveFrom)}

@@ -24,7 +24,7 @@ import {
   searchExerciseCatalog,
   updateExercise,
 } from "./exercise-actions";
-import { ExerciseImage, PreviewImage } from "./exercise-image";
+import { ExercisePreviewSheet, getExerciseImages, PreviewThumb } from "./exercise-preview";
 import {
   describeExercise,
   EXERCISE_SOURCE,
@@ -45,6 +45,7 @@ type SheetState =
   | { kind: "preview"; result: ExerciseResult; back: "search" | "add" }
   | { kind: "add"; result: ExerciseResult | null; name: string }
   | { kind: "edit"; exercise: WorkoutExercise }
+  | { kind: "photo"; exercise: WorkoutExercise }
   | null;
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -89,7 +90,6 @@ export function WorkoutExercises({
             const { current, previous } = getLoadOn(exercise.versions, today);
             const content = (
               <>
-                <ExerciseImage src={exercise.imageUrl} />
                 <span className={ui.rowText}>
                   <span className={ui.rowTitle}>{exercise.name}</span>
                   {current && <span className={styles.loadLine}>{formatLoad(current)}</span>}
@@ -101,7 +101,12 @@ export function WorkoutExercises({
               </>
             );
             return (
-              <li key={exercise.id}>
+              <li key={exercise.id} className={styles.savedRow}>
+                <PreviewThumb
+                  src={exercise.imageUrl}
+                  name={exercise.name}
+                  onOpen={() => setSheet({ kind: "photo", exercise })}
+                />
                 {readOnly ? (
                   <Link className={styles.exerciseRow} href={`/workouts/exercises/${exercise.id}`}>
                     {content}
@@ -166,6 +171,14 @@ export function WorkoutExercises({
           today={today}
           onPreview={(result) => setSheet({ kind: "preview", result, back: "add" })}
           onBack={() => setSheet({ kind: "search" })}
+          onClose={close}
+        />
+      )}
+      {sheet?.kind === "photo" && (
+        <ExercisePreviewSheet
+          title={sheet.exercise.name}
+          subtitle={describeExercise(sheet.exercise.muscles, sheet.exercise.equipment) || workoutName(workout)}
+          images={getExerciseImages(sheet.exercise.imageUrl)}
           onClose={close}
         />
       )}
@@ -294,18 +307,12 @@ function SearchSheet({
               const taken = takenSourceIds.has(result.sourceId);
               return (
                 <li key={result.sourceId} className={styles.resultRow}>
-                  <button
-                    type="button"
-                    className={styles.previewButton}
-                    aria-label={`Ver ${result.localName ?? result.name} ampliado`}
-                    onClick={() => onPreview(result)}
-                  >
-                    <ExerciseImage src={result.imageUrl} size="md" />
-                    <svg className={styles.zoomIcon} viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="11" cy="11" r="6" />
-                      <path d="m20 20-4.5-4.5M11 8.5v5M8.5 11h5" />
-                    </svg>
-                  </button>
+                  <PreviewThumb
+                    src={result.imageUrl}
+                    name={result.localName ?? result.name}
+                    size="md"
+                    onOpen={() => onPreview(result)}
+                  />
                   <button
                     type="button"
                     className={sheetStyles.optionRow}
@@ -419,18 +426,12 @@ function AddSheet({
       onClose={onClose}
     >
       {result && (
-        <button
-          type="button"
-          className={styles.previewButton}
-          aria-label={`Ver ${result.localName ?? result.name} ampliado`}
-          onClick={() => onPreview(result)}
-        >
-          <ExerciseImage src={result.imageUrl} size="md" />
-          <svg className={styles.zoomIcon} viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="6" />
-            <path d="m20 20-4.5-4.5M11 8.5v5M8.5 11h5" />
-          </svg>
-        </button>
+        <PreviewThumb
+          src={result.imageUrl}
+          name={result.localName ?? result.name}
+          size="md"
+          onOpen={() => onPreview(result)}
+        />
       )}
       <LoadFields value={load} onChange={setLoad} errors={showErrors ? loadErrors : undefined} />
       <label className={g.field}>
@@ -702,27 +703,15 @@ function PreviewSheet({
   onPick: (() => void) | null;
   onClose: () => void;
 }) {
-  const captions = ["Início do movimento", "Fim do movimento"];
   return (
-    <Sheet
+    <ExercisePreviewSheet
       title={result.localName ?? result.name}
       subtitle={[result.localName && result.name, describeExercise(result.muscles, result.equipment)]
         .filter(Boolean)
         .join(" · ")}
+      images={result.images}
       onClose={onClose}
     >
-      {result.images.length === 0 ? (
-        <p className={sheetStyles.sheetInfo}>Este exercício não tem imagem.</p>
-      ) : (
-        <div className={styles.previewImages}>
-          {result.images.slice(0, 2).map((image, index) => (
-            <figure key={image} className={styles.previewFigure}>
-              <PreviewImage src={image} alt={`${result.localName ?? result.name}: ${captions[index].toLowerCase()}`} />
-              {result.images.length > 1 && <figcaption>{captions[index]}</figcaption>}
-            </figure>
-          ))}
-        </div>
-      )}
       {taken && <p className={sheetStyles.sheetInfo}>Já está no treino {taken}.</p>}
       <div className={sheetStyles.sheetActions}>
         <button type="button" className={sheetStyles.secondaryButton} onClick={onBack}>
@@ -734,6 +723,6 @@ function PreviewSheet({
           </button>
         )}
       </div>
-    </Sheet>
+    </ExercisePreviewSheet>
   );
 }
