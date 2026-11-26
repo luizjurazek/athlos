@@ -7,7 +7,6 @@ import { LoadingStatus, Skeleton, SkeletonList } from "@/app/components/Skeleton
 import { formatNumericDate } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
-import { WEEKDAYS } from "@/app/utils/weekdays";
 import ui from "../../objectives/objectives.module.css";
 import { endPlan } from "../actions";
 import { getLoadOn, formatLoad } from "@/app/utils/workout-loads";
@@ -79,83 +78,27 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
       {plan.endedOn ? (
         <EndedPlanWorkouts plan={plan} endedOn={plan.endedOn} />
       ) : (
-      <div className={styles.detailColumns}>
-        <section className={ui.section}>
-          <h2 className={ui.sectionTitle}>Treinos</h2>
-          <ul className={`${ui.list} ${styles.list}`}>
-            {plan.workouts.map((workout) => (
-              <li key={workout.id}>
-                <Link className={styles.workoutRow} href={`/workouts/${plan.id}/${workout.id}`}>
-                  <WorkoutLetter label={workout.label} />
-                  <span className={ui.rowText}>
-                    <span className={ui.rowTitle}>{workout.description ?? `Treino ${workout.label}`}</span>
-                    <span className={ui.rowMeta}>{exerciseCount(plan.exerciseCounts[workout.id] ?? 0)}</span>
-                  </span>
-                  <Chevron />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <UsageSection plan={plan} />
-      </div>
+      <section className={ui.section}>
+        <h2 className={ui.sectionTitle}>Treinos</h2>
+        <ul className={`${ui.list} ${styles.list}`}>
+          {plan.workouts.map((workout) => (
+            <li key={workout.id}>
+              <Link className={styles.workoutRow} href={`/workouts/${plan.id}/${workout.id}`}>
+                <WorkoutLetter label={workout.label} />
+                <span className={ui.rowText}>
+                  <span className={ui.rowTitle}>{workout.description ?? `Treino ${workout.label}`}</span>
+                  <span className={ui.rowMeta}>{exerciseCount(plan.exerciseCounts[workout.id] ?? 0)}</span>
+                </span>
+                <Chevron />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
       )}
 
       {active && <PlanActionsPanel planId={plan.id} endAction={endPlan.bind(null, plan.id)} />}
     </>
-  );
-}
-
-/** The plan only holds workouts; the objective using it decides the workout of each weekday. */
-function UsageSection({ plan }: { plan: PlanDetail }) {
-  const days = WEEKDAYS.filter((day) => plan.objectiveWeekdays?.includes(day.value));
-  if (!plan.objectiveId) {
-    return (
-      <section className={ui.section}>
-        <h2 className={ui.sectionTitle}>Uso</h2>
-        <p className={ui.empty}>
-          Ficha livre: não aparece no Hoje. Para usar, escolha esta ficha num objetivo de academia e defina o treino
-          de cada dia.
-        </p>
-        {!plan.endedOn && (
-          <Link className={ui.editLink} href="/objectives">
-            Escolher num objetivo
-          </Link>
-        )}
-      </section>
-    );
-  }
-  return (
-    <section className={ui.section}>
-      <div className={styles.sectionHeader}>
-        <h2 className={ui.sectionTitle}>Treino de cada dia · {plan.objectiveTitle}</h2>
-        {!plan.endedOn && (
-          <Link className={styles.textLink} href={`/objectives/${plan.objectiveId}/edit`}>
-            Alterar no objetivo
-          </Link>
-        )}
-      </div>
-      <ul className={`${ui.list} ${styles.list}`}>
-        {days.map((day) => {
-          const entry = plan.schedule.find((item) => item.weekday === day.value);
-          const workout = entry && plan.workouts.find((item) => item.id === entry.workoutId);
-          return (
-            <li key={day.value} className={styles.scheduleRow}>
-              <span className={styles.scheduleDay}>{day.long}</span>
-              {workout ? (
-                <span className={styles.scheduleValue}>
-                  <WorkoutLetter label={workout.label} small />
-                  <span>{workout.description ?? `Treino ${workout.label}`}</span>
-                </span>
-              ) : (
-                <span className={`${styles.scheduleValue} ${styles.scheduleNone}`}>Sem treino fixo</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }
 

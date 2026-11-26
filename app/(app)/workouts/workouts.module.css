@@ -116,13 +116,6 @@
   color: var(--color-text-muted);
 }
 
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
 .workoutRow {
   display: flex;
   align-items: center;
@@ -138,87 +131,9 @@ a.workoutRow:active {
   background: var(--color-surface-muted);
 }
 
-.scheduleRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: calc(var(--touch-target) + var(--space-2));
-  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
-}
-
-.scheduleDay {
-  flex-shrink: 0;
-  font-weight: var(--font-weight-medium);
-}
-
-.scheduleValue {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  font-size: var(--text-footnote);
-}
-
-.scheduleValue > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.scheduleNone {
-  color: var(--color-text-muted);
-}
-
-.select {
-  width: 100%;
-  min-height: var(--control-height);
-  padding: 0 var(--space-4);
-  border: none;
-  background: transparent;
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-body);
-}
-
-.scheduleSelect {
-  max-width: 62%;
-  min-height: var(--touch-target);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-body);
-}
-
-.select:focus-visible,
-.scheduleSelect:focus-visible,
 .workoutRow:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
-}
-
-.notice {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-warning-bg);
-  color: var(--color-text);
-  font-size: var(--text-footnote);
-}
-
-.notice svg {
-  flex-shrink: 0;
-  width: var(--space-4);
-  height: var(--space-4);
-  margin-top: 2px;
-  fill: none;
-  stroke: var(--color-warning);
-  stroke-width: 2;
-  stroke-linecap: round;
 }
 
 .checkRow {
@@ -272,23 +187,8 @@ a.workoutRow:active {
   }
 }
 
-.detailColumns {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
 .actions > * + * {
   border-top: 1px solid var(--color-border);
-}
-
-@media (min-width: 1024px) {
-  .detailColumns {
-    display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    align-items: start;
-    gap: var(--space-12);
-  }
 }
 
 .linkButton {
@@ -553,59 +453,6 @@ button.exerciseRow:focus-visible {
   button.exerciseRow:hover {
     background: var(--color-surface-muted);
   }
-}
-
-.scheduleOff {
-  color: var(--color-text-muted);
-}
-
-.scheduleOff .scheduleValue {
-  font-size: var(--text-footnote);
-}
-
-.scheduleButton {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.scheduleButton .scheduleValue {
-  flex: 1;
-  justify-content: flex-end;
-}
-
-.scheduleButton:active {
-  background: var(--color-surface-muted);
-}
-
-.scheduleButton:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
-}
-
-@media (hover: hover) {
-  .scheduleButton:hover {
-    background: var(--color-surface-muted);
-  }
-}
-
-.textLink {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--touch-target);
-  padding: 0 var(--space-2);
-  color: var(--color-text);
-  font-size: var(--text-footnote);
-  font-weight: var(--font-weight-strong);
-}
-
-.textLink:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
 }
 
 .chart {
