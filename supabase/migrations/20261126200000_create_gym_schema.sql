@@ -415,11 +415,11 @@ grant execute on function public.save_workout_load(uuid, date, integer, integer,
 --   workouts: [{ "label": "A", "description": "Peito", "copy_from_workout_id": uuid | null }]
 --   schedule: [{ "weekday": 1, "workout_index": 0 }]  (index into workouts)
 create function public.start_workout_plan(
-  objective_id uuid,
   title text,
   started_on date,
   workouts jsonb,
-  schedule jsonb default '[]'::jsonb
+  schedule jsonb default '[]'::jsonb,
+  objective_id uuid default null
 )
 returns uuid
 language plpgsql
@@ -516,5 +516,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.start_workout_plan(uuid, text, date, jsonb, jsonb) from public, anon;
-grant execute on function public.start_workout_plan(uuid, text, date, jsonb, jsonb) to authenticated;
+revoke execute on function public.start_workout_plan(text, date, jsonb, jsonb, uuid) from public, anon;
+grant execute on function public.start_workout_plan(text, date, jsonb, jsonb, uuid) to authenticated;

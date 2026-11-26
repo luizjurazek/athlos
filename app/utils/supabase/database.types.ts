@@ -782,6 +782,10 @@ export type Database = {
         Args: { goal: Json; objective_ids: string[]; stages: Json };
         Returns: string;
       };
+      save_plan_workouts: {
+        Args: { plan_id: string; workouts: Json };
+        Returns: undefined;
+      };
       save_workout_load: {
         Args: {
           day: string;
@@ -794,7 +798,7 @@ export type Database = {
       };
       start_workout_plan: {
         Args: {
-          objective_id: string;
+          objective_id?: string;
           schedule?: Json;
           started_on: string;
           title: string;

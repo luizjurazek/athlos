@@ -1,0 +1,298 @@
+.subtitle {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: calc(var(--space-6) + var(--space-1));
+  height: calc(var(--space-6) + var(--space-1));
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.letterSmall {
+  min-width: var(--space-5);
+  height: var(--space-5);
+  font-size: var(--text-caption-2);
+}
+
+.letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.planMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-footnote);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-strong);
+  white-space: nowrap;
+}
+
+.pill svg {
+  width: var(--space-3);
+  height: var(--space-3);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pill[data-tone="muted"] {
+  color: var(--color-text-muted);
+}
+
+.ended {
+  color: var(--color-text-muted);
+}
+
+.list > li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.emptyCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-12);
+  height: var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+}
+
+.emptyIcon svg {
+  width: var(--space-6);
+  height: var(--space-6);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.emptyTitle {
+  font-size: var(--text-headline);
+  font-weight: var(--font-weight-heading);
+}
+
+.emptyText {
+  color: var(--color-text-muted);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.workoutRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-target) + var(--space-4));
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+a.workoutRow:active {
+  background: var(--color-surface-muted);
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-target) + var(--space-2));
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+}
+
+.scheduleDay {
+  flex-shrink: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.scheduleValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-footnote);
+}
+
+.scheduleValue > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleNone {
+  color: var(--color-text-muted);
+}
+
+.select {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.scheduleSelect {
+  max-width: 62%;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+}
+
+.select:focus-visible,
+.scheduleSelect:focus-visible,
+.workoutRow:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.notice {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg);
+  color: var(--color-text);
+  font-size: var(--text-footnote);
+}
+
+.notice svg {
+  flex-shrink: 0;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin-top: 2px;
+  fill: none;
+  stroke: var(--color-warning);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  cursor: pointer;
+}
+
+.workoutFields {
+  display: grid;
+  grid-template-columns: calc(var(--space-12) + var(--space-4)) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.labelInput {
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.workoutCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.workoutCardTop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.workoutCardTop > .workoutFields {
+  flex: 1;
+  min-width: 0;
+}
+
+.workoutTools {
+  display: flex;
+  flex-shrink: 0;
+}
+
+@media (hover: hover) {
+  a.workoutRow:hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+.detailColumns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.actions > * + * {
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 1024px) {
+  .detailColumns {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+    gap: var(--space-12);
+  }
+}
+
+.linkButton {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
