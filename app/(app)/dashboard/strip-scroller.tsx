@@ -32,6 +32,7 @@ export function StripDayLink({
   day,
   href,
   selected,
+  isToday = false,
   className,
   label,
   children,
@@ -39,6 +40,7 @@ export function StripDayLink({
   day: string;
   href: string;
   selected: boolean;
+  isToday?: boolean;
   className: string;
   label: string;
   children: ReactNode;
@@ -52,6 +54,7 @@ export function StripDayLink({
       pendingKey={day}
       className={className}
       aria-current={current ? "date" : undefined}
+      data-today={isToday || undefined}
       aria-label={label}
       onClick={(event) => {
         if (current) event.preventDefault();

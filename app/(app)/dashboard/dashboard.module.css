@@ -89,6 +89,17 @@
   color: var(--color-on-primary);
 }
 
+/* Today keeps a ring while another day is selected, so "where is today" is always visible. */
+.stripDay[data-today="true"] .stripWeekday {
+  color: var(--color-text);
+  font-weight: var(--font-weight-heading);
+}
+
+.stripDay[data-today="true"]:not([aria-current="date"]) .stripDate {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  font-weight: var(--font-weight-heading);
+}
+
 .stripDay:active .stripDate {
   transform: scale(0.94);
 }

@@ -263,8 +263,9 @@ function DayStrip({ days, selected, today }: { days: StripDay[]; selected: strin
             day={day}
             href={day === today ? "/dashboard" : `/dashboard?day=${day}`}
             selected={day === selected}
+            isToday={day === today}
             className={styles.stripDay}
-            label={`${formatLongDate(day)}, ${status}`}
+            label={`${day === today ? "Hoje, " : ""}${formatLongDate(day)}, ${status}`}
           >
             <span className={styles.stripWeekday} aria-hidden="true">
               {WEEKDAYS[getWeekday(day)].short}
