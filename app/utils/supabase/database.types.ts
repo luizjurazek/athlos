@@ -39,6 +39,57 @@ export type Database = {
   };
   public: {
     Tables: {
+      activity_sessions: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"];
+          created_at: string;
+          day: string;
+          id: string;
+          notes: string | null;
+          objective_id: string;
+          updated_at: string;
+          user_id: string;
+          workout_id: string | null;
+        };
+        Insert: {
+          activity_type: Database["public"]["Enums"]["activity_type"];
+          created_at?: string;
+          day: string;
+          id?: string;
+          notes?: string | null;
+          objective_id: string;
+          updated_at?: string;
+          user_id?: string;
+          workout_id?: string | null;
+        };
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"];
+          created_at?: string;
+          day?: string;
+          id?: string;
+          notes?: string | null;
+          objective_id?: string;
+          updated_at?: string;
+          user_id?: string;
+          workout_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "activity_sessions_objective_fkey";
+            columns: ["objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "activity_sessions_workout_fkey";
+            columns: ["workout_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workouts";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       goal_entries: {
         Row: {
           amount: number;
@@ -385,6 +436,7 @@ export type Database = {
       };
       objectives: {
         Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"] | null;
           archived_at: string | null;
           color: string | null;
           created_at: string;
@@ -397,6 +449,7 @@ export type Database = {
           weekdays: number[];
         };
         Insert: {
+          activity_type?: Database["public"]["Enums"]["activity_type"] | null;
           archived_at?: string | null;
           color?: string | null;
           created_at?: string;
@@ -409,6 +462,7 @@ export type Database = {
           weekdays?: number[];
         };
         Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"] | null;
           archived_at?: string | null;
           color?: string | null;
           created_at?: string;
@@ -448,6 +502,228 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      workout_exercise_loads: {
+        Row: {
+          created_at: string;
+          effective_from: string;
+          id: string;
+          load_kg: number | null;
+          reps: number;
+          sets: number;
+          user_id: string;
+          workout_exercise_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          effective_from: string;
+          id?: string;
+          load_kg?: number | null;
+          reps: number;
+          sets: number;
+          user_id?: string;
+          workout_exercise_id: string;
+        };
+        Update: {
+          created_at?: string;
+          effective_from?: string;
+          id?: string;
+          load_kg?: number | null;
+          reps?: number;
+          sets?: number;
+          user_id?: string;
+          workout_exercise_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workout_exercise_loads_exercise_fkey";
+            columns: ["workout_exercise_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workout_exercises";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      workout_exercises: {
+        Row: {
+          archived_at: string | null;
+          copied_from_id: string | null;
+          created_at: string;
+          equipment: string | null;
+          id: string;
+          image_url: string | null;
+          muscles: string[] | null;
+          name: string;
+          notes: string | null;
+          position: number;
+          source: string | null;
+          source_id: string | null;
+          updated_at: string;
+          user_id: string;
+          workout_id: string;
+        };
+        Insert: {
+          archived_at?: string | null;
+          copied_from_id?: string | null;
+          created_at?: string;
+          equipment?: string | null;
+          id?: string;
+          image_url?: string | null;
+          muscles?: string[] | null;
+          name: string;
+          notes?: string | null;
+          position: number;
+          source?: string | null;
+          source_id?: string | null;
+          updated_at?: string;
+          user_id?: string;
+          workout_id: string;
+        };
+        Update: {
+          archived_at?: string | null;
+          copied_from_id?: string | null;
+          created_at?: string;
+          equipment?: string | null;
+          id?: string;
+          image_url?: string | null;
+          muscles?: string[] | null;
+          name?: string;
+          notes?: string | null;
+          position?: number;
+          source?: string | null;
+          source_id?: string | null;
+          updated_at?: string;
+          user_id?: string;
+          workout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workout_exercises_copied_from_fkey";
+            columns: ["copied_from_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workout_exercises";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "workout_exercises_workout_fkey";
+            columns: ["workout_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workouts";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      workout_plans: {
+        Row: {
+          created_at: string;
+          ended_on: string | null;
+          id: string;
+          objective_id: string | null;
+          started_on: string;
+          title: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          ended_on?: string | null;
+          id?: string;
+          objective_id?: string | null;
+          started_on: string;
+          title: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          created_at?: string;
+          ended_on?: string | null;
+          id?: string;
+          objective_id?: string | null;
+          started_on?: string;
+          title?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workout_plans_objective_fkey";
+            columns: ["objective_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "objectives";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      workout_schedule: {
+        Row: {
+          plan_id: string;
+          user_id: string;
+          weekday: number;
+          workout_id: string;
+        };
+        Insert: {
+          plan_id: string;
+          user_id?: string;
+          weekday: number;
+          workout_id: string;
+        };
+        Update: {
+          plan_id?: string;
+          user_id?: string;
+          weekday?: number;
+          workout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workout_schedule_plan_fkey";
+            columns: ["plan_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workout_plans";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "workout_schedule_workout_fkey";
+            columns: ["workout_id", "plan_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workouts";
+            referencedColumns: ["id", "plan_id", "user_id"];
+          },
+        ];
+      };
+      workouts: {
+        Row: {
+          description: string | null;
+          id: string;
+          label: string;
+          plan_id: string;
+          position: number;
+          user_id: string;
+        };
+        Insert: {
+          description?: string | null;
+          id?: string;
+          label: string;
+          plan_id: string;
+          position: number;
+          user_id?: string;
+        };
+        Update: {
+          description?: string | null;
+          id?: string;
+          label?: string;
+          plan_id?: string;
+          position?: number;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workouts_plan_fkey";
+            columns: ["plan_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "workout_plans";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
       };
     };
     Views: {
@@ -506,8 +782,40 @@ export type Database = {
         Args: { goal: Json; objective_ids: string[]; stages: Json };
         Returns: string;
       };
+      save_workout_load: {
+        Args: {
+          day: string;
+          load_kg?: number;
+          reps: number;
+          sets: number;
+          workout_exercise_id: string;
+        };
+        Returns: boolean;
+      };
+      start_workout_plan: {
+        Args: {
+          objective_id: string;
+          schedule?: Json;
+          started_on: string;
+          title: string;
+          workouts: Json;
+        };
+        Returns: string;
+      };
+      workout_loads_on: {
+        Args: { day: string; plan_id: string };
+        Returns: {
+          effective_from: string;
+          load_kg: number;
+          reps: number;
+          sets: number;
+          workout_exercise_id: string;
+          workout_id: string;
+        }[];
+      };
     };
     Enums: {
+      activity_type: "gym";
       goal_progress_source: "checks" | "entries";
       goal_status: "active" | "completed" | "expired" | "abandoned";
     };
@@ -640,6 +948,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      activity_type: ["gym"],
       goal_progress_source: ["checks", "entries"],
       goal_status: ["active", "completed", "expired", "abandoned"],
     },
