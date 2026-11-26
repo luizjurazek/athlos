@@ -782,6 +782,11 @@
   animation: sheet-in var(--duration-base) var(--ease-standard);
 }
 
+/* The sheet scrolls as a whole; without this, tall content squashes inputs and chip rows. */
+.sheet[open] > * {
+  flex-shrink: 0;
+}
+
 .sheet::backdrop {
   background: color-mix(in srgb, var(--palette-black) 45%, transparent);
 }

@@ -12,7 +12,7 @@ import ui from "../../objectives/objectives.module.css";
 import { endPlan } from "../actions";
 import { getPlan, type PlanDetail } from "../data";
 import { PlanActionsPanel } from "../end-plan-panel";
-import { PlanObjectivePill, WorkoutLetter } from "../workout-letter";
+import { Chevron, PlanObjectivePill, WorkoutLetter } from "../workout-letter";
 import styles from "../workouts.module.css";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -79,12 +79,15 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
           <h2 className={ui.sectionTitle}>Treinos</h2>
           <ul className={`${ui.list} ${styles.list}`}>
             {plan.workouts.map((workout) => (
-              <li key={workout.id} className={styles.workoutRow}>
-                <WorkoutLetter label={workout.label} />
-                <span className={ui.rowText}>
-                  <span className={ui.rowTitle}>{workout.description ?? `Treino ${workout.label}`}</span>
-                  <span className={ui.rowMeta}>{exerciseCount(plan.exerciseCounts[workout.id] ?? 0)}</span>
-                </span>
+              <li key={workout.id}>
+                <Link className={styles.workoutRow} href={`/workouts/${plan.id}/${workout.id}`}>
+                  <WorkoutLetter label={workout.label} />
+                  <span className={ui.rowText}>
+                    <span className={ui.rowTitle}>{workout.description ?? `Treino ${workout.label}`}</span>
+                    <span className={ui.rowMeta}>{exerciseCount(plan.exerciseCounts[workout.id] ?? 0)}</span>
+                  </span>
+                  <Chevron />
+                </Link>
               </li>
             ))}
           </ul>

@@ -296,3 +296,261 @@ a.workoutRow:active {
   align-items: center;
   text-decoration: none;
 }
+
+.thumb {
+  flex-shrink: 0;
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  object-fit: cover;
+}
+
+.thumbMd {
+  width: var(--space-14);
+  height: var(--space-14);
+}
+
+.thumbPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.thumbPlaceholder svg {
+  width: 55%;
+  height: 55%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.loadFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.steppers {
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.steppers > * + * {
+  border-top: 1px solid var(--color-border);
+}
+
+.stepperRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+
+.stepperLabel {
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.stepperButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.stepperButton:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.stepperButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepperButton svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.stepperInput {
+  width: 4.5ch;
+  min-height: var(--touch-target);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-title-3);
+  font-weight: var(--font-weight-heading);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.stepperInput:disabled {
+  color: var(--color-text-muted);
+}
+
+.stepperError {
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.stepperButton:focus-visible,
+.stepperInput:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.exerciseRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-target) + var(--space-4));
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.exerciseRow {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+button.exerciseRow:active {
+  background: var(--color-surface-muted);
+}
+
+button.exerciseRow:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.loadLine {
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+}
+
+.workoutHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.searchField {
+  flex-direction: row;
+  align-items: center;
+  padding-left: var(--space-3);
+}
+
+.searchField svg {
+  flex-shrink: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.searchField input {
+  flex: 1;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+
+.chips {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips > * {
+  flex-shrink: 0;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: calc(var(--touch-target) * 2);
+}
+
+.resultSkeleton {
+  height: calc(var(--space-14) + var(--space-4));
+  background: linear-gradient(90deg, var(--color-surface) 0%, var(--color-surface-muted) 50%, var(--color-surface) 100%);
+}
+
+.unavailable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-bg);
+  font-size: var(--text-footnote);
+}
+
+.plusIcon {
+  flex-shrink: 0;
+  width: var(--space-5);
+  height: var(--space-5);
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.attribution {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.attribution a {
+  color: inherit;
+}
+
+.exerciseTools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+@media (hover: hover) {
+  button.exerciseRow:hover {
+    background: var(--color-surface-muted);
+  }
+}

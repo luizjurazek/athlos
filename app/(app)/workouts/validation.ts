@@ -162,3 +162,6 @@ export function parsePlanDraft(raw: FormDataEntryValue | null): PlanDraft | null
     confirmEndOther: record.confirmEndOther === true,
   };
 }
+
+export const EXERCISE_NAME_MAX_LENGTH = 80;
+export const EXERCISE_NOTES_MAX_LENGTH = 280;

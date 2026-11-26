@@ -1,4 +1,5 @@
 import type { createClient } from "@/app/utils/supabase/server";
+import { toLoadVersion, type LoadVersion } from "@/app/utils/workout-loads";
 
 type Client = ReturnType<typeof createClient>;
 
@@ -164,4 +165,68 @@ export async function getWorkoutsWithHistory(
     ...sessions.data.flatMap((session) => (session.workout_id ? [session.workout_id] : [])),
     ...loads.data.map((load) => load.workout_exercises.workout_id),
   ]);
+}
+
+export type WorkoutExercise = {
+  id: string;
+  name: string;
+  notes: string | null;
+  source: string | null;
+  sourceId: string | null;
+  imageUrl: string | null;
+  muscles: string[] | null;
+  equipment: string | null;
+  position: number;
+  versions: LoadVersion[];
+};
+
+export type WorkoutDetail = {
+  id: string;
+  label: string;
+  description: string | null;
+  plan: { id: string; title: string; startedOn: string; endedOn: string | null };
+  exercises: WorkoutExercise[];
+};
+
+export async function getWorkoutDetail(
+  supabase: Client,
+  planId: string,
+  workoutId: string,
+): Promise<WorkoutDetail | null> {
+  const { data, error } = await supabase
+    .from("workouts")
+    .select(
+      "id, label, description, workout_plans ( id, title, started_on, ended_on ), workout_exercises ( id, name, notes, source, source_id, image_url, muscles, equipment, position, created_at, archived_at, workout_exercise_loads ( effective_from, sets, reps, load_kg ) )",
+    )
+    .eq("id", workoutId)
+    .eq("plan_id", planId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || !data.workout_plans) return null;
+  return {
+    id: data.id,
+    label: data.label,
+    description: data.description,
+    plan: {
+      id: data.workout_plans.id,
+      title: data.workout_plans.title,
+      startedOn: data.workout_plans.started_on,
+      endedOn: data.workout_plans.ended_on,
+    },
+    exercises: data.workout_exercises
+      .filter((exercise) => !exercise.archived_at)
+      .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at))
+      .map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        notes: exercise.notes,
+        source: exercise.source,
+        sourceId: exercise.source_id,
+        imageUrl: exercise.image_url,
+        muscles: exercise.muscles,
+        equipment: exercise.equipment,
+        position: exercise.position,
+        versions: exercise.workout_exercise_loads.map(toLoadVersion),
+      })),
+  };
 }

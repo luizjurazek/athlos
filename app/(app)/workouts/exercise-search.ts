@@ -1,58 +1,15 @@
 // RN-31: the catalog is queried live, never copied into the database. free-exercise-db has no
 // search endpoint, so its static JSON goes through Next's data cache and is filtered here.
 
-const SOURCE = "free-exercise-db";
+import { EXERCISE_SOURCE, type Muscle } from "./exercise-labels";
+
+const SOURCE = EXERCISE_SOURCE;
 const BASE_URL = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main";
 const CATALOG_URL = `${BASE_URL}/dist/exercises.json`;
 const IMAGE_BASE_URL = `${BASE_URL}/exercises/`;
 const CATALOG_REVALIDATE_SECONDS = 60 * 60 * 24;
 const TIMEOUT_MS = 4000;
 const MAX_RESULTS = 30;
-
-export const EXERCISE_SOURCE_LABEL = "free-exercise-db";
-export const EXERCISE_SOURCE_URL = "https://github.com/yuhonas/free-exercise-db";
-
-export const MUSCLES = [
-  "chest",
-  "shoulders",
-  "triceps",
-  "biceps",
-  "forearms",
-  "lats",
-  "middle back",
-  "lower back",
-  "traps",
-  "neck",
-  "abdominals",
-  "quadriceps",
-  "hamstrings",
-  "glutes",
-  "calves",
-  "adductors",
-  "abductors",
-] as const;
-
-export type Muscle = (typeof MUSCLES)[number];
-
-export const MUSCLE_LABELS: Record<Muscle, string> = {
-  chest: "Peito",
-  shoulders: "Ombros",
-  triceps: "Tríceps",
-  biceps: "Bíceps",
-  forearms: "Antebraços",
-  lats: "Dorsais",
-  "middle back": "Meio das costas",
-  "lower back": "Lombar",
-  traps: "Trapézio",
-  neck: "Pescoço",
-  abdominals: "Abdômen",
-  quadriceps: "Quadríceps",
-  hamstrings: "Posteriores",
-  glutes: "Glúteos",
-  calves: "Panturrilhas",
-  adductors: "Adutores",
-  abductors: "Abdutores",
-};
 
 export type ExerciseResult = {
   source: typeof SOURCE;
