@@ -14,8 +14,13 @@ const MAX_RESULTS = 30;
 export type ExerciseResult = {
   source: typeof SOURCE;
   sourceId: string;
+  /** Catalog name (English). */
   name: string;
+  /** Shared Portuguese name from exercise_names, when someone gave one. */
+  localName: string | null;
   imageUrl: string | null;
+  /** Every photo of the exercise (start and end of the movement), for the preview. */
+  images: string[];
   muscles: string[];
   equipment: string | null;
 };
@@ -28,6 +33,17 @@ export type ExerciseSearchResult =
 // terms are mapped so "supino" or "agachamento" still find something. Longer phrases come first.
 const PORTUGUESE_TERMS: [string, string][] = [
   ["levantamento terra", "deadlift"],
+  ["em pe", "standing"],
+  ["rosca martela", "hammer curl"],
+  ["rosca martelo", "hammer curl"],
+  ["remada curvada", "bent over row"],
+  ["remada sentada", "seated row"],
+  ["remada alta", "upright row"],
+  ["remada unilateral", "one arm row"],
+  ["elevacao lateral de perna", "side leg raise"],
+  ["elevacao de panturrilha", "calf raise"],
+  ["extensao de triceps", "triceps extension"],
+  ["triceps na polia", "triceps pushdown"],
   ["terra romeno", "romanian deadlift"],
   ["elevacao lateral", "lateral raise"],
   ["elevacao frontal", "front raise"],
@@ -65,13 +81,41 @@ const PORTUGUESE_TERMS: [string, string][] = [
   ["barra", "barbell"],
   ["maquina", "machine"],
   ["polia", "cable"],
+  ["cabos", "cable"],
   ["cabo", "cable"],
+  ["corda", "rope"],
+  ["sentada", "seated"],
+  ["sentado", "seated"],
+  ["curvada", "bent over"],
+  ["unilateral", "one arm"],
+  ["martela", "hammer"],
+  ["extensao", "extension"],
+  ["elevacao", "raise"],
+  ["pernas", "leg"],
+  ["perna", "leg"],
+  ["ombros", "shoulder"],
+  ["ombro", "shoulder"],
+  ["barras", "barbell"],
   ["cross", "cable"],
   ["gluteo", "glute"],
   ["sumo", "sumo"],
 ];
 
-const IGNORED_WORDS = new Set(["reto", "de", "do", "da", "com", "no", "na", "em", "o", "a", "e"]);
+const IGNORED_WORDS = new Set(["reto", "de", "do", "da", "dos", "das", "com", "no", "na", "em", "o", "a", "e"]);
+const STOP_WORDS_PT = new Set(["de", "do", "da", "dos", "das", "com", "no", "na", "em", "o", "a", "e"]);
+
+/** Light Portuguese stemming so "halter"/"halteres", "cabo"/"cabos" and "martela"/"martelo" meet. */
+function stem(word: string) {
+  const singular = word.length > 4 && word.endsWith("es") ? word.slice(0, -2) : word.replace(/s$/, "");
+  return singular.length > 4 ? singular.replace(/[aeo]$/, "") : singular;
+}
+
+export function toPortugueseTerms(query: string): string[] {
+  return normalize(query)
+    .split(" ")
+    .filter((word) => word && !STOP_WORDS_PT.has(word))
+    .map(stem);
+}
 
 function normalize(text: string) {
   return text
@@ -137,12 +181,22 @@ function rank(name: string, phrase: string) {
   return 3;
 }
 
+/** Like `rank`, plus "the name starts with the first word typed" ("supino…" before "barra fixa supinada"). */
+function rankPortuguese(name: string, phrase: string, firstTerm: string | undefined) {
+  if (name === phrase) return 0;
+  if (name.startsWith(phrase)) return 1;
+  if (firstTerm && name.startsWith(firstTerm)) return 2;
+  if (name.includes(phrase)) return 3;
+  return 4;
+}
+
 export async function searchExercises(
   query: string,
-  { muscle }: { muscle?: Muscle } = {},
+  { muscle, localNames }: { muscle?: Muscle; localNames?: ReadonlyMap<string, string> } = {},
 ): Promise<ExerciseSearchResult> {
   const terms = toSearchTerms(query);
-  if (terms.length === 0 && !muscle) return { ok: true, results: [] };
+  const ptTerms = toPortugueseTerms(query);
+  if (terms.length === 0 && ptTerms.length === 0 && !muscle) return { ok: true, results: [] };
 
   let catalog: CatalogEntry[];
   try {
@@ -153,32 +207,47 @@ export async function searchExercises(
   }
 
   const phrase = terms.join(" ");
+  const ptPhrase = normalize(query);
+  // A translated query rarely matches the English name word for word ("supino inclinado halteres"
+  // has "bench", the catalog says "Incline Dumbbell Press"), so longer queries tolerate one missing
+  // term; full matches still come first. A shared Portuguese name beats any English match.
   const scored = catalog
     .filter((entry) => !muscle || entry.primaryMuscles.includes(muscle))
     .map((entry) => {
       const name = normalize(entry.name);
+      const localName = localNames?.get(entry.id) ?? null;
+      const ptName = localName ? normalize(localName) : null;
       const text = `${name} ${name.replaceAll(" ", "")} ${normalize(entry.equipment ?? "")}`;
-      const missing = terms.filter((term) => !text.includes(term)).length;
-      return { entry, name, missing };
+      const enMissing = terms.filter((term) => !text.includes(term)).length;
+      const ptMissing = ptName ? ptTerms.filter((term) => !ptName.includes(term)).length : Infinity;
+      const allowedEn = terms.length >= 3 ? 1 : 0;
+      const allowedPt = ptTerms.length >= 3 ? 1 : 0;
+      const tier =
+        ptMissing === 0 ? 0 : enMissing === 0 ? 1 : ptMissing <= allowedPt ? 2 : enMissing <= allowedEn ? 3 : null;
+      const closeness =
+        ptName && tier !== 1 && tier !== 3
+          ? rankPortuguese(ptName, ptPhrase, ptTerms[0])
+          : rank(name, phrase);
+      return { entry, name, localName, tier, closeness, length: (ptName ?? name).length };
     });
-  // A translated query rarely matches the English name word for word ("supino inclinado halteres"
-  // has "bench", the catalog says "Incline Dumbbell Press"), so longer queries tolerate one missing
-  // term; full matches still come first.
-  const allowedMissing = terms.length >= 3 ? 1 : 0;
+
   const results = scored
-    .filter(({ missing }) => missing <= allowedMissing)
+    .filter((item) => item.tier !== null || (terms.length === 0 && ptTerms.length === 0))
     .sort(
       (a, b) =>
-        a.missing - b.missing ||
-        rank(a.name, phrase) - rank(b.name, phrase) ||
-        a.name.length - b.name.length,
+        (a.tier ?? 9) - (b.tier ?? 9) ||
+        a.closeness - b.closeness ||
+        Number(b.localName !== null) - Number(a.localName !== null) ||
+        a.length - b.length,
     )
     .slice(0, MAX_RESULTS)
-    .map(({ entry }): ExerciseResult => ({
+    .map(({ entry, localName }): ExerciseResult => ({
       source: SOURCE,
       sourceId: entry.id,
       name: entry.name,
+      localName,
       imageUrl: entry.images[0] ? `${IMAGE_BASE_URL}${entry.images[0]}` : null,
+      images: entry.images.map((image) => `${IMAGE_BASE_URL}${image}`),
       muscles: entry.primaryMuscles,
       equipment: entry.equipment,
     }));

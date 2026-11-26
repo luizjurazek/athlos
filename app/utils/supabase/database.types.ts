@@ -90,6 +90,33 @@ export type Database = {
           },
         ];
       };
+      exercise_names: {
+        Row: {
+          created_at: string;
+          name: string;
+          source: string;
+          source_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          name: string;
+          source: string;
+          source_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          name?: string;
+          source?: string;
+          source_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
       goal_entries: {
         Row: {
           amount: number;
@@ -796,6 +823,10 @@ export type Database = {
           workout_exercise_id: string;
         };
         Returns: boolean;
+      };
+      set_exercise_name: {
+        Args: { name: string; source: string; source_id: string };
+        Returns: undefined;
       };
       start_workout_plan: {
         Args: {

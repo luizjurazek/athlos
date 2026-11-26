@@ -24,7 +24,7 @@ import {
   searchExerciseCatalog,
   updateExercise,
 } from "./exercise-actions";
-import { ExerciseImage } from "./exercise-image";
+import { ExerciseImage, PreviewImage } from "./exercise-image";
 import {
   describeExercise,
   EXERCISE_SOURCE,
@@ -42,6 +42,7 @@ type WorkoutInfo = { id: string; label: string; description: string | null };
 
 type SheetState =
   | { kind: "search" }
+  | { kind: "preview"; result: ExerciseResult; back: "search" | "add" }
   | { kind: "add"; result: ExerciseResult | null; name: string }
   | { kind: "edit"; exercise: WorkoutExercise }
   | null;
@@ -68,7 +69,14 @@ export function WorkoutExercises({
   readOnly: boolean;
 }) {
   const [sheet, setSheet] = useState<SheetState>(null);
-  const close = () => setSheet(null);
+  // Kept here so going back from the preview or the load step returns to the same search.
+  const [search, setSearch] = useState<SearchState>({ query: "", muscle: null });
+  const close = () => {
+    setSheet(null);
+    setSearch({ query: "", muscle: null });
+  };
+  const pick = (result: ExerciseResult) =>
+    setSheet({ kind: "add", result, name: result.localName ?? result.name });
   const takenSourceIds = new Set(exercises.flatMap((exercise) => (exercise.sourceId ? [exercise.sourceId] : [])));
 
   return (
@@ -130,9 +138,23 @@ export function WorkoutExercises({
         <SearchSheet
           workout={workout}
           takenSourceIds={takenSourceIds}
+          search={search}
+          onSearchChange={setSearch}
           onClose={close}
-          onPick={(result) => setSheet({ kind: "add", result, name: result.name })}
+          onPick={pick}
+          onPreview={(result) => setSheet({ kind: "preview", result, back: "search" })}
           onWrite={(name) => setSheet({ kind: "add", result: null, name })}
+        />
+      )}
+      {sheet?.kind === "preview" && (
+        <PreviewSheet
+          result={sheet.result}
+          taken={takenSourceIds.has(sheet.result.sourceId) ? workout.label : null}
+          onBack={() =>
+            setSheet(sheet.back === "search" ? { kind: "search" } : { kind: "add", result: sheet.result, name: sheet.result.localName ?? sheet.result.name })
+          }
+          onPick={sheet.back === "search" ? () => pick(sheet.result) : null}
+          onClose={close}
         />
       )}
       {sheet?.kind === "add" && (
@@ -142,6 +164,7 @@ export function WorkoutExercises({
           initialName={sheet.name}
           loadDay={loadDay}
           today={today}
+          onPreview={(result) => setSheet({ kind: "preview", result, back: "add" })}
           onBack={() => setSheet({ kind: "search" })}
           onClose={close}
         />
@@ -161,21 +184,30 @@ export function WorkoutExercises({
   );
 }
 
+type SearchState = { query: string; muscle: Muscle | null };
+
 function SearchSheet({
   workout,
   takenSourceIds,
+  search: { query, muscle },
+  onSearchChange,
   onClose,
   onPick,
+  onPreview,
   onWrite,
 }: {
   workout: WorkoutInfo;
   takenSourceIds: Set<string>;
+  search: SearchState;
+  onSearchChange: (search: SearchState) => void;
   onClose: () => void;
   onPick: (result: ExerciseResult) => void;
+  onPreview: (result: ExerciseResult) => void;
   onWrite: (name: string) => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [muscle, setMuscle] = useState<Muscle | null>(null);
+  const setQuery = (value: string) => onSearchChange({ query: value, muscle });
+  const setMuscle = (update: (current: Muscle | null) => Muscle | null) =>
+    onSearchChange({ query, muscle: update(muscle) });
   const [search, setSearch] = useState<{ key: string; result: ExerciseSearchResult } | null>(null);
   const latestKey = useRef("");
   const trimmed = query.trim();
@@ -219,7 +251,7 @@ function SearchSheet({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      <p className={sheetStyles.sheetInfo}>Busque em inglês (ex.: bench press). Termos comuns em português também funcionam.</p>
+      <p className={sheetStyles.sheetInfo}>Busque em português ou em inglês. Sem nome em português? Dê um ao adicionar e ele vale para todos.</p>
       <div className={styles.chips} role="group" aria-label="Filtrar por músculo">
         {MUSCLES.map((item) => (
           <button
@@ -234,7 +266,7 @@ function SearchSheet({
         ))}
       </div>
 
-      <div className={styles.results} aria-live="polite" aria-busy={loading}>
+      <div className={styles.results} data-ready={ready || undefined} aria-live="polite" aria-busy={loading}>
         {!ready && <p className={sheetStyles.sheetInfo}>Digite pelo menos 2 letras.</p>}
         {loading && (
           <ul className={`${ui.list} ${styles.list}`} aria-hidden="true">
@@ -261,18 +293,36 @@ function SearchSheet({
             {current.results.map((result) => {
               const taken = takenSourceIds.has(result.sourceId);
               return (
-                <li key={result.sourceId}>
+                <li key={result.sourceId} className={styles.resultRow}>
+                  <button
+                    type="button"
+                    className={styles.previewButton}
+                    aria-label={`Ver ${result.localName ?? result.name} ampliado`}
+                    onClick={() => onPreview(result)}
+                  >
+                    <ExerciseImage src={result.imageUrl} size="md" />
+                    <svg className={styles.zoomIcon} viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="11" cy="11" r="6" />
+                      <path d="m20 20-4.5-4.5M11 8.5v5M8.5 11h5" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     className={sheetStyles.optionRow}
                     aria-disabled={taken || undefined}
                     onClick={() => !taken && onPick(result)}
                   >
-                    <ExerciseImage src={result.imageUrl} size="md" />
                     <span className={ui.rowText}>
-                      <span className={sheetStyles.rowTitle}>{result.name}</span>
+                      <span className={sheetStyles.rowTitle}>{result.localName ?? result.name}</span>
                       <span className={ui.rowMeta}>
-                        {taken ? `Já está no treino ${workout.label}` : describeExercise(result.muscles, result.equipment)}
+                        {taken
+                          ? `Já está no treino ${workout.label}`
+                          : [
+                              result.localName ? result.name : "Sem nome em português",
+                              describeExercise(result.muscles, result.equipment),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                       </span>
                     </span>
                     {!taken && (
@@ -311,6 +361,7 @@ function AddSheet({
   initialName,
   loadDay,
   today,
+  onPreview,
   onBack,
   onClose,
 }: {
@@ -319,11 +370,15 @@ function AddSheet({
   initialName: string;
   loadDay: string;
   today: string;
+  onPreview: (result: ExerciseResult) => void;
   onBack: () => void;
   onClose: () => void;
 }) {
   const { pending, error, run } = useSheetAction(onClose);
   const [name, setName] = useState(initialName);
+  const [shareChoice, setShareChoice] = useState<boolean | null>(null);
+  const share = getShareOption(result, name);
+  const shareName = share !== null && (shareChoice ?? share.suggested);
   const [notes, setNotes] = useState("");
   const [load, setLoad] = useState<LoadDraft>(toLoadDraft(null));
   const [showErrors, setShowErrors] = useState(false);
@@ -347,17 +402,36 @@ function AddSheet({
           muscles: result.muscles,
           equipment: result.equipment,
         },
+        shareName,
       }),
     );
   }
 
   return (
     <Sheet
-      title={result ? result.name : "Escrever exercício"}
-      subtitle={result ? describeExercise(result.muscles, result.equipment) || workoutName(workout) : workoutName(workout)}
+      title={result ? (result.localName ?? result.name) : "Escrever exercício"}
+      subtitle={
+        result
+          ? [result.localName && result.name, describeExercise(result.muscles, result.equipment)].filter(Boolean).join(" · ") ||
+            workoutName(workout)
+          : workoutName(workout)
+      }
       onClose={onClose}
     >
-      {result && <ExerciseImage src={result.imageUrl} size="md" />}
+      {result && (
+        <button
+          type="button"
+          className={styles.previewButton}
+          aria-label={`Ver ${result.localName ?? result.name} ampliado`}
+          onClick={() => onPreview(result)}
+        >
+          <ExerciseImage src={result.imageUrl} size="md" />
+          <svg className={styles.zoomIcon} viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6" />
+            <path d="m20 20-4.5-4.5M11 8.5v5M8.5 11h5" />
+          </svg>
+        </button>
+      )}
       <LoadFields value={load} onChange={setLoad} errors={showErrors ? loadErrors : undefined} />
       <label className={g.field}>
         <span className={g.label}>{result ? "Nome no treino" : "Nome"}</span>
@@ -374,6 +448,14 @@ function AddSheet({
         </span>
         {showErrors && nameError && <span className={g.fieldError}>{nameError}</span>}
       </label>
+      {share && (
+        <ShareNameOption
+          option={share}
+          checked={shareName}
+          onChange={setShareChoice}
+          englishName={result?.name ?? ""}
+        />
+      )}
       <label className={g.field}>
         <span className={g.label}>Observação (opcional)</span>
         <span className={ui.group}>
@@ -431,6 +513,8 @@ function EditSheet({
   const [notes, setNotes] = useState(exercise.notes ?? "");
   const [load, setLoad] = useState<LoadDraft>(toLoadDraft(current));
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [shareName, setShareName] = useState(false);
+  const canShare = Boolean(exercise.sourceId) && name.trim() !== "" && name.trim() !== exercise.name;
   const values = toLoadValues(load);
   const loadErrors = validateLoad(values);
   const loadChanged = !current || !sameLoad(values, current);
@@ -439,7 +523,9 @@ function EditSheet({
 
   function submit() {
     if (!name.trim() || hasLoadErrors(loadErrors)) return;
-    run(() => updateExercise(exercise.id, { name, notes, load: loadChanged ? values : null }));
+    run(() =>
+      updateExercise(exercise.id, { name, notes, load: loadChanged ? values : null, shareName: canShare && shareName }),
+    );
   }
 
   return (
@@ -466,6 +552,20 @@ function EditSheet({
         </span>
         {!name.trim() && <span className={g.fieldError}>Dê um nome ao exercício.</span>}
       </label>
+      {canShare && (
+        <label className={styles.checkRow}>
+          <input
+            className={g.checkbox}
+            type="checkbox"
+            checked={shareName}
+            onChange={(event) => setShareName(event.target.checked)}
+          />
+          <span className={styles.shareText}>
+            <span>Usar este nome para todos</span>
+            <span className={styles.shareHint}>Vale para a busca de todo mundo. Os treinos já salvos não mudam.</span>
+          </span>
+        </label>
+      )}
       <label className={g.field}>
         <span className={g.label}>Observação (opcional)</span>
         <span className={ui.group}>
@@ -536,6 +636,104 @@ function EditSheet({
             : "Este exercício ainda não tem histórico e será apagado."}
         </p>
       )}
+    </Sheet>
+  );
+}
+
+type ShareOption = { kind: "give" | "fix"; current: string | null; suggested: boolean };
+
+/**
+ * Shared Portuguese names (wiki style): offered when the exercise has none yet, or when the name typed
+ * differs from the shared one. Giving a first name is pre-checked; changing someone's name is opt-in.
+ */
+function getShareOption(result: ExerciseResult | null, name: string): ShareOption | null {
+  const typed = name.trim();
+  if (!result || !typed) return null;
+  if (!result.localName) {
+    return typed.toLowerCase() === result.name.trim().toLowerCase()
+      ? null
+      : { kind: "give", current: null, suggested: true };
+  }
+  return typed === result.localName ? null : { kind: "fix", current: result.localName, suggested: false };
+}
+
+function ShareNameOption({
+  option,
+  checked,
+  onChange,
+  englishName,
+}: {
+  option: ShareOption;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  englishName: string;
+}) {
+  return (
+    <label className={styles.checkRow}>
+      <input
+        className={g.checkbox}
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className={styles.shareText}>
+        <span>{option.kind === "give" ? "Usar este nome para todos" : "Corrigir o nome para todos"}</span>
+        <span className={styles.shareHint}>
+          {option.kind === "give"
+            ? `Quem buscar "${englishName}" vai ver este nome.`
+            : `Hoje todos veem "${option.current}". Os treinos já salvos não mudam.`}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function PreviewSheet({
+  result,
+  taken,
+  onBack,
+  onPick,
+  onClose,
+}: {
+  result: ExerciseResult;
+  /** Workout label when the exercise is already in it. */
+  taken: string | null;
+  onBack: () => void;
+  onPick: (() => void) | null;
+  onClose: () => void;
+}) {
+  const captions = ["Início do movimento", "Fim do movimento"];
+  return (
+    <Sheet
+      title={result.localName ?? result.name}
+      subtitle={[result.localName && result.name, describeExercise(result.muscles, result.equipment)]
+        .filter(Boolean)
+        .join(" · ")}
+      onClose={onClose}
+    >
+      {result.images.length === 0 ? (
+        <p className={sheetStyles.sheetInfo}>Este exercício não tem imagem.</p>
+      ) : (
+        <div className={styles.previewImages}>
+          {result.images.slice(0, 2).map((image, index) => (
+            <figure key={image} className={styles.previewFigure}>
+              <PreviewImage src={image} alt={`${result.localName ?? result.name}: ${captions[index].toLowerCase()}`} />
+              {result.images.length > 1 && <figcaption>{captions[index]}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      )}
+      {taken && <p className={sheetStyles.sheetInfo}>Já está no treino {taken}.</p>}
+      <div className={sheetStyles.sheetActions}>
+        <button type="button" className={sheetStyles.secondaryButton} onClick={onBack}>
+          Voltar
+        </button>
+        {onPick && (
+          <button type="button" className={sheetStyles.primaryButton} disabled={Boolean(taken)} onClick={onPick}>
+            Usar este exercício
+          </button>
+        )}
+      </div>
     </Sheet>
   );
 }

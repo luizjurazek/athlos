@@ -31,3 +31,29 @@ export function ExerciseImage({ src, size = "sm" }: { src: string | null; size?:
     />
   );
 }
+
+/** Large photo for the preview; a broken link shows the placeholder instead of an empty box. */
+export function PreviewImage({ src, alt }: { src: string; alt: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <span className={`${styles.previewImage} ${styles.thumbPlaceholder}`} role="img" aria-label={`${alt} (imagem indisponível)`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="5" r="2" />
+          <path d="M12 7v7M7 10h10M12 14l-3 6M12 14l3 6" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <Image
+      className={styles.previewImage}
+      src={src}
+      alt={alt}
+      width={640}
+      height={480}
+      sizes="(min-width: 640px) 480px, 100vw"
+      onError={() => setBroken(true)}
+    />
+  );
+}

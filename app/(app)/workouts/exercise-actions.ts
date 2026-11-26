@@ -35,7 +35,29 @@ async function loadContext() {
 /** RN-31: the search runs on the server; the client never talks to the catalog directly. */
 export async function searchExerciseCatalog(query: string, muscle: string | null): Promise<ExerciseSearchResult> {
   await requireUser();
-  return searchExercises(String(query).slice(0, 80), isMuscle(muscle) ? { muscle } : {});
+  const supabase = createClient(await cookies());
+  // Shared names are a bonus: without them the search still works in English.
+  const { data, error } = await supabase
+    .from("exercise_names")
+    .select("source_id, name")
+    .eq("source", EXERCISE_SOURCE);
+  if (error) console.error("Failed to load shared exercise names", error);
+  const localNames = new Map((data ?? []).map((row) => [row.source_id, row.name]));
+  return searchExercises(String(query).slice(0, 80), {
+    ...(isMuscle(muscle) ? { muscle } : {}),
+    localNames,
+  });
+}
+
+/** Wiki style (any signed-in user): gives or fixes the Portuguese name everyone sees in the search. */
+async function shareExerciseName(supabase: Client, sourceId: string, name: string) {
+  const { error } = await supabase.rpc("set_exercise_name", {
+    source: EXERCISE_SOURCE,
+    source_id: sourceId,
+    name,
+  });
+  if (error) console.error("Failed to share the exercise name", error);
+  return !error;
 }
 
 async function getWorkoutContext(supabase: Client, workoutId: string) {
@@ -51,7 +73,7 @@ async function getWorkoutContext(supabase: Client, workoutId: string) {
 async function getExerciseContext(supabase: Client, exerciseId: string) {
   const { data, error } = await supabase
     .from("workout_exercises")
-    .select("id, workout_id, position, archived_at, workouts ( plan_id, workout_plans ( started_on, ended_on ) )")
+    .select("id, workout_id, position, archived_at, source, source_id, workouts ( plan_id, workout_plans ( started_on, ended_on ) )")
     .eq("id", exerciseId)
     .maybeSingle();
   if (error) throw error;
@@ -94,7 +116,7 @@ function firstLoadDay(today: string, startedOn: string) {
 
 export async function addExercise(
   workoutId: string,
-  input: { name: unknown; notes: unknown; load: unknown; snapshot: unknown },
+  input: { name: unknown; notes: unknown; load: unknown; snapshot: unknown; shareName?: unknown },
 ): Promise<ExerciseActionResult> {
   const { supabase, today } = await loadContext();
   const name = cleanText(input.name, EXERCISE_NAME_MAX_LENGTH + 1);
@@ -145,6 +167,8 @@ export async function addExercise(
     return { ok: false, error: SAVE_ERROR };
   }
 
+  if (snapshot && input.shareName === true) await shareExerciseName(supabase, snapshot.sourceId, name);
+
   revalidateWorkout(workout.plan_id, workoutId);
   return { ok: true };
 }
@@ -161,7 +185,7 @@ function insertLoad(supabase: Client, exerciseId: string, day: string, load: Loa
 
 export async function updateExercise(
   exerciseId: string,
-  input: { name: unknown; notes: unknown; load: unknown },
+  input: { name: unknown; notes: unknown; load: unknown; shareName?: unknown },
 ): Promise<ExerciseActionResult> {
   const { supabase, today } = await loadContext();
   const name = cleanText(input.name, EXERCISE_NAME_MAX_LENGTH + 1);
@@ -202,6 +226,10 @@ export async function updateExercise(
       console.error("Failed to save exercise load", loadError);
       return { ok: false, error: "O nome foi salvo, mas não deu para salvar a carga. Tente de novo." };
     }
+  }
+
+  if (input.shareName === true && exercise.source === EXERCISE_SOURCE && exercise.source_id) {
+    await shareExerciseName(supabase, exercise.source_id, name);
   }
 
   if (exercise.workouts) revalidateWorkout(exercise.workouts.plan_id, exercise.workout_id);
