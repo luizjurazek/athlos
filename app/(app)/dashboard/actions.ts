@@ -17,7 +17,7 @@ export type CheckFailure = "out-of-window" | "not-scheduled" | "failed";
 export type SetCheckResult = { ok: true } | { ok: false; reason: CheckFailure };
 export type RescheduleResult = { ok: true } | { ok: false; error: string };
 export type AdditionResult = RescheduleResult;
-export type DayWorkoutFailure = "out-of-window" | "not-scheduled" | "invalid-workout" | "failed";
+export type DayWorkoutFailure = "out-of-window" | "not-scheduled" | "checked" | "invalid-workout" | "failed";
 export type SetDayWorkoutResult = { ok: true } | { ok: false; reason: DayWorkoutFailure };
 
 const UNIQUE_VIOLATION = "23505";
@@ -405,8 +405,8 @@ async function getPlanCovering(supabase: Client, objectiveId: string, day: strin
 }
 
 /**
- * RN-28: sets the workout of one day of a gym objective, whatever defined it before (schedule,
- * an earlier choice, an extra or a day already done). The check is left as it is.
+ * RN-28: sets the workout of one day of a gym objective, whatever defined it before (schedule, an
+ * earlier choice or an extra). A day already checked keeps its workout: uncheck it first.
  */
 export async function setDayWorkout(
   objectiveId: string,
@@ -421,6 +421,14 @@ export async function setDayWorkout(
   const changes = await getDayChanges(supabase, day, day, objectiveId).catch(() => null);
   if (!changes) return { ok: false, reason: "failed" };
   if (!getOccurrence(objective, day, changes).due) return { ok: false, reason: "not-scheduled" };
+
+  const { count, error: checkError } = await supabase
+    .from("objective_checks")
+    .select("id", { count: "exact", head: true })
+    .eq("objective_id", objectiveId)
+    .eq("day", day);
+  if (checkError) return { ok: false, reason: "failed" };
+  if (count) return { ok: false, reason: "checked" };
 
   const plan = await getPlanCovering(supabase, objectiveId, day).catch(() => undefined);
   if (plan === undefined) return { ok: false, reason: "failed" };

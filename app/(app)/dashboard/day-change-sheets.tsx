@@ -55,11 +55,7 @@ export function ActionsSheet({
       hint: `Neste dia, fazer outro no lugar de ${objective.title}.`,
       blockedWhenChecked: true,
     },
-    workout: {
-      title: "Trocar treino",
-      hint: checked ? "Só neste dia. O check continua marcado." : "Só neste dia; a agenda não muda.",
-      blockedWhenChecked: false,
-    },
+    workout: { title: "Trocar treino", hint: "Só neste dia; a agenda não muda.", blockedWhenChecked: true },
     undo: { title: undoTitle, hint: "Volta este dia ao que era antes.", blockedWhenChecked: false },
   };
   const blocked = (action: DayAction) => checked && details[action].blockedWhenChecked;
@@ -94,7 +90,7 @@ export function ActionsSheet({
         ))}
       </ul>
       {actions.some(blocked) && (
-        <p className={styles.sheetInfo}>Esse dia já tem check. Desmarque antes de mudar de dia ou trocar de objetivo.</p>
+        <p className={styles.sheetInfo}>Esse dia já tem check. Desmarque antes de mudar de dia ou trocar.</p>
       )}
     </Sheet>
   );

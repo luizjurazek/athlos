@@ -258,7 +258,14 @@ async function ObjectiveDetail({
               day={selectedDay}
               today={today}
               gym={selectedGym}
-              canSwap={Boolean(selectedOccurrence?.due) && isWithinWorkoutSwapWindow(selectedDay, today)}
+              canSwap={
+                Boolean(selectedOccurrence?.due) &&
+                isWithinWorkoutSwapWindow(selectedDay, today) &&
+                !checkedDays.has(selectedDay)
+              }
+              swapBlockedReason={
+                checkedDays.has(selectedDay) ? "Dia com check: desmarque no Hoje para trocar o treino." : undefined
+              }
             />
           )}
           {isGym && (
@@ -462,12 +469,14 @@ function SelectedDayWorkout({
   today,
   gym,
   canSwap,
+  swapBlockedReason,
 }: {
   objective: { id: string; title: string; checked: boolean };
   day: string;
   today: string;
   gym: GymDay;
   canSwap: boolean;
+  swapBlockedReason?: string;
 }) {
   const workout = gym.workouts.find((item) => item.id === gym.workout?.workoutId) ?? null;
   const exercises = workout ? gym.exercises.filter((exercise) => exercise.workoutId === workout.id) : [];
@@ -503,7 +512,14 @@ function SelectedDayWorkout({
       </p>
       {workout && (
         <div className={styles.list}>
-          <DayWorkoutSwap objective={objective} gym={gym} current={workout} day={day} canSwap={canSwap} />
+          <DayWorkoutSwap
+            objective={objective}
+            gym={gym}
+            current={workout}
+            day={day}
+            canSwap={canSwap}
+            reason={swapBlockedReason}
+          />
         </div>
       )}
     </section>

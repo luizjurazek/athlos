@@ -287,6 +287,7 @@ export function GymPanel({
 const WORKOUT_ERRORS: Record<DayWorkoutFailure, string> = {
   "out-of-window": "Só dá para trocar até 7 dias atrás.",
   "not-scheduled": "Esse objetivo não está programado neste dia. Atualize a página.",
+  checked: "Esse dia já tem check. Desmarque antes de trocar o treino.",
   "invalid-workout": "Esse treino não é da ficha deste dia. Atualize a página.",
   failed: "Não deu para salvar. Tente de novo.",
 };
@@ -395,7 +396,7 @@ export function SwapWorkoutSheet({
       <p className={styles.sheetInfo}>
         Só muda o treino deste dia.
         {scheduleWorkout ? ` A agenda continua ${scheduleWorkout.label}.` : ""}
-        {objective.checked ? " O check continua marcado." : ""}
+
       </p>
       <SheetError error={error} />
       <div className={styles.sheetActions}>
@@ -409,7 +410,7 @@ export function SwapWorkoutSheet({
             ? "Salvando..."
             : selected.id === current.id
               ? "Escolha outro treino"
-              : `Trocar para Treino ${selected.label}${objective.checked ? " (o dia continua feito)" : ""}`}
+              : `Trocar para Treino ${selected.label}`}
         </button>
       </div>
     </Sheet>

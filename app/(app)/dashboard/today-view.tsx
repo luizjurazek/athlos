@@ -46,7 +46,7 @@ function getActions(item: DayObjective, gym: GymDay | undefined): DayAction[] {
     if (item.reschedulable) actions.push("move");
     if (item.alternatives.length > 0) actions.push("replace");
   }
-  // RN-28: any workout already defined for the day can be swapped, even on a day already done.
+  // RN-28: the workout of a day can be swapped until the day is checked.
   if (gym?.workout) actions.push("workout");
   return actions;
 }
@@ -131,7 +131,9 @@ export function TodayView({
 
   function openActions(item: DayObjective) {
     const actions = getActions(item, gymDays[item.id]);
-    if (actions.length > 1) setSheet({ kind: "actions", item });
+    // A checked day opens the list even for one action, so the blocked option can explain why.
+    const blockedAlone = item.checked && actions.length === 1 && actions[0] !== "undo";
+    if (actions.length > 1 || blockedAlone) setSheet({ kind: "actions", item });
     else if (actions[0]) runAction(item, actions[0]);
   }
 
