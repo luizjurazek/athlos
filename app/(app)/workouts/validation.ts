@@ -1,5 +1,4 @@
 import { isDay } from "@/app/utils/dates";
-import { isWeekday, type Weekday } from "@/app/utils/weekdays";
 
 export const PLAN_TITLE_MAX_LENGTH = 60;
 export const WORKOUT_LABEL_MAX_LENGTH = 3;
@@ -15,17 +14,10 @@ export type WorkoutDraft = {
   copyFromId: string | null;
 };
 
-/** Index into `workouts` per weekday; null = "Sem treino fixo". */
-export type ScheduleDraft = Partial<Record<Weekday, number | null>>;
-
 export type PlanDraft = {
   title: string;
   startedOn: string;
-  objectiveId: string | null;
   workouts: WorkoutDraft[];
-  schedule: ScheduleDraft;
-  /** Edit flow: the user agreed to end the objective's other active plan. */
-  confirmEndOther: boolean;
 };
 
 export type WorkoutErrors = { label?: string; description?: string };
@@ -33,10 +25,8 @@ export type WorkoutErrors = { label?: string; description?: string };
 export type PlanErrors = {
   title?: string;
   startedOn?: string;
-  objective?: string;
   workouts: WorkoutErrors[];
   workoutsList?: string;
-  schedule?: string;
 };
 
 export function normalizeLabel(label: string) {
@@ -48,23 +38,7 @@ export function nextWorkoutLabel(labels: string[]) {
   return [...LETTERS].find((letter) => !used.has(letter)) ?? "";
 }
 
-export function formatWorkoutName(workout: { label: string; description: string | null }) {
-  return workout.description ? `${workout.label} — ${workout.description}` : `Treino ${workout.label}`;
-}
-
-/** RN-34: one row per scheduled weekday, suggesting A, B, C… in sequence. */
-export function suggestSchedule(weekdays: readonly number[], workoutCount: number): ScheduleDraft {
-  const schedule: ScheduleDraft = {};
-  weekdays.filter(isWeekday).forEach((weekday, index) => {
-    schedule[weekday] = workoutCount > 0 ? index % workoutCount : null;
-  });
-  return schedule;
-}
-
-export function validatePlan(
-  draft: PlanDraft,
-  { minStartedOn }: { minStartedOn?: { day: string; message: string } } = {},
-): PlanErrors {
+export function validatePlan(draft: PlanDraft): PlanErrors {
   const errors: PlanErrors = { workouts: [] };
   const title = draft.title.trim();
   if (!title) errors.title = "Dê um nome à ficha.";
@@ -73,7 +47,6 @@ export function validatePlan(
   }
 
   if (!isDay(draft.startedOn)) errors.startedOn = "Escolha a data de início.";
-  else if (minStartedOn && draft.startedOn <= minStartedOn.day) errors.startedOn = minStartedOn.message;
 
   if (draft.workouts.length === 0) errors.workoutsList = "Adicione pelo menos um treino.";
 
@@ -94,16 +67,11 @@ export function validatePlan(
     return workoutErrors;
   });
 
-  const scheduled = Object.values(draft.schedule);
-  if (scheduled.some((index) => index != null && (index < 0 || index >= draft.workouts.length))) {
-    errors.schedule = "Escolha os treinos da agenda de novo.";
-  }
-
   return errors;
 }
 
 export function countPlanErrors(errors: PlanErrors) {
-  const top = [errors.title, errors.startedOn, errors.objective, errors.workoutsList, errors.schedule];
+  const top = [errors.title, errors.startedOn, errors.workoutsList];
   const workoutCount = errors.workouts.reduce(
     (total, workout) => total + Object.values(workout).filter(Boolean).length,
     0,
@@ -145,21 +113,10 @@ export function parsePlanDraft(raw: FormDataEntryValue | null): PlanDraft | null
       copyFromId: readString(workout, "copyFromId") || null,
     }));
 
-  const schedule: ScheduleDraft = {};
-  const rawSchedule = toRecord(record.schedule) ?? {};
-  for (const [key, value] of Object.entries(rawSchedule)) {
-    const weekday = Number(key);
-    if (!isWeekday(weekday)) continue;
-    schedule[weekday] = typeof value === "number" && Number.isInteger(value) ? value : null;
-  }
-
   return {
     title: readString(record, "title"),
     startedOn: readString(record, "startedOn"),
-    objectiveId: readString(record, "objectiveId") || null,
     workouts,
-    schedule,
-    confirmEndOther: record.confirmEndOther === true,
   };
 }
 

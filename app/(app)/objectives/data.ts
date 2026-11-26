@@ -29,17 +29,24 @@ export async function getAlternativeOptions(supabase: Client, objectiveId?: stri
   return { options, linkedIds };
 }
 
+export type GymFormWorkout = { id: string; label: string; description: string | null };
+
 export type GymFormContext = {
   /** Weekdays already used by another active gym objective (RN-33). */
   takenDays: { weekday: number; title: string }[];
-  /** Free active plans plus the one linked to this objective, if any. */
-  plans: { id: string; title: string }[];
-  linkedPlan: { id: string; title: string } | null;
-  /** Weekdays with a workout in the linked plan's schedule (removing one deletes that row). */
-  scheduledWeekdays: number[];
+  /** Free active plans plus the one linked to this objective, if any, with their workouts. */
+  plans: { id: string; title: string; workouts: GymFormWorkout[] }[];
+  linkedPlan: { id: string; title: string; startedOn: string } | null;
+  /** The linked plan's workout per weekday. */
+  schedule: { weekday: number; workoutId: string }[];
+  today: string;
 };
 
-export async function getGymFormContext(supabase: Client, objectiveId?: string): Promise<GymFormContext> {
+export async function getGymFormContext(
+  supabase: Client,
+  today: string,
+  objectiveId?: string,
+): Promise<GymFormContext> {
   const [objectives, plans] = await Promise.all([
     supabase
       .from("objectives")
@@ -48,7 +55,7 @@ export async function getGymFormContext(supabase: Client, objectiveId?: string):
       .is("archived_at", null),
     supabase
       .from("workout_plans")
-      .select("id, title, objective_id")
+      .select("id, title, objective_id, started_on, workouts ( id, label, description, position )")
       .is("ended_on", null)
       .order("started_on", { ascending: false }),
   ]);
@@ -60,15 +67,22 @@ export async function getGymFormContext(supabase: Client, objectiveId?: string):
     .flatMap((objective) => objective.weekdays.map((weekday) => ({ weekday, title: objective.title })));
   const linked = objectiveId ? plans.data.find((plan) => plan.objective_id === objectiveId) : undefined;
   const schedule = linked
-    ? await supabase.from("workout_schedule").select("weekday").eq("plan_id", linked.id)
+    ? await supabase.from("workout_schedule").select("weekday, workout_id").eq("plan_id", linked.id)
     : null;
   if (schedule?.error) throw schedule.error;
   return {
-    scheduledWeekdays: schedule?.data.map((row) => row.weekday) ?? [],
     takenDays,
     plans: plans.data
       .filter((plan) => plan.objective_id === null || plan.id === linked?.id)
-      .map(({ id, title }) => ({ id, title })),
-    linkedPlan: linked ? { id: linked.id, title: linked.title } : null,
+      .map(({ id, title, workouts }) => ({
+        id,
+        title,
+        workouts: [...workouts]
+          .sort((a, b) => a.position - b.position)
+          .map(({ id: workoutId, label, description }) => ({ id: workoutId, label, description })),
+      })),
+    linkedPlan: linked ? { id: linked.id, title: linked.title, startedOn: linked.started_on } : null,
+    schedule: (schedule?.data ?? []).map((row) => ({ weekday: row.weekday, workoutId: row.workout_id })),
+    today,
   };
 }

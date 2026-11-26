@@ -3,19 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { addDays, formatNumericDate, getUserToday } from "@/app/utils/dates";
+import { getUserToday } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../dashboard/day-objectives";
-import { getGymObjectives, getPlan, getWorkoutsWithHistory, type GymObjective } from "./data";
-import {
-  countPlanErrors,
-  normalizeLabel,
-  parsePlanDraft,
-  validatePlan,
-  type PlanDraft,
-  type PlanErrors,
-} from "./validation";
+import { getPlan, getWorkoutsWithHistory } from "./data";
+import { countPlanErrors, normalizeLabel, parsePlanDraft, validatePlan, type PlanErrors } from "./validation";
 
 export type PlanFormState = { error?: string; errors?: PlanErrors } | undefined;
 
@@ -36,35 +29,6 @@ function revalidateWorkouts(planId?: string) {
   revalidatePath("/dashboard");
 }
 
-/** The new plan must start after the plan it ends, so the old one can close the day before. */
-function minStartAfter(plan: { title: string; startedOn: string } | null | undefined) {
-  return plan
-    ? {
-        day: plan.startedOn,
-        message: `A ${plan.title} começou em ${formatNumericDate(plan.startedOn)}. A nova precisa começar depois.`,
-      }
-    : undefined;
-}
-
-function checkObjective(
-  draft: PlanDraft,
-  objectives: GymObjective[],
-): { objective: GymObjective | null } | { error: string } {
-  if (!draft.objectiveId) return { objective: null };
-  const objective = objectives.find((item) => item.id === draft.objectiveId);
-  if (!objective) return { error: "Esse objetivo de academia não está mais disponível. Atualize a página." };
-  return { objective };
-}
-
-function toSchedule(draft: PlanDraft, objective: GymObjective | null) {
-  if (!objective) return [];
-  return Object.entries(draft.schedule).flatMap(([weekday, index]) =>
-    index != null && objective.weekdays.includes(Number(weekday))
-      ? [{ weekday: Number(weekday), workout_index: index }]
-      : [],
-  );
-}
-
 export async function createPlan(
   sourcePlanId: string | null,
   _prev: PlanFormState,
@@ -73,29 +37,11 @@ export async function createPlan(
   const { supabase } = await loadContext();
   const draft = parsePlanDraft(formData.get("plan"));
   if (!draft) return { error: SAVE_ERROR };
-
-  let objectives: GymObjective[];
-  try {
-    objectives = await getGymObjectives(supabase);
-  } catch (error) {
-    console.error("Failed to load gym objectives", error);
-    return { error: SAVE_ERROR };
-  }
-  const checked = checkObjective(draft, objectives);
-  if ("error" in checked) return { errors: { workouts: [], objective: checked.error } };
-  const { objective } = checked;
-
-  const source = sourcePlanId ? await getPlan(supabase, sourcePlanId).catch(() => null) : null;
-  const copying = draft.workouts.some((workout) => workout.copyFromId);
-  const freeSource =
-    copying && !objective && source && !source.objectiveId && !source.endedOn ? source : null;
-  const errors = validatePlan(draft, {
-    minStartedOn: minStartAfter(objective?.activePlan ?? freeSource),
-  });
+  const errors = validatePlan(draft);
   if (countPlanErrors(errors) > 0) return { errors };
 
+  // The plan is created free; the gym objective picks it and sets each weekday's workout.
   const { data: planId, error } = await supabase.rpc("start_workout_plan", {
-    objective_id: objective?.id,
     title: draft.title.trim(),
     started_on: draft.startedOn,
     workouts: draft.workouts.map((workout) => ({
@@ -103,23 +49,18 @@ export async function createPlan(
       description: workout.description.trim(),
       copy_from_workout_id: workout.copyFromId,
     })),
-    schedule: toSchedule(draft, objective),
   });
   if (error) {
     console.error("Failed to create workout plan", error);
     return { error: SAVE_ERROR };
   }
 
-  // "Nova ficha" from a free plan: the RPC only ends the objective's plan, so end the source here.
-  if (freeSource) {
-    const { error: endError } = await supabase
-      .from("workout_plans")
-      .update({ ended_on: addDays(draft.startedOn, -1) })
-      .eq("id", freeSource.id);
-    if (endError) console.error("Failed to end the copied free plan", endError);
-  }
-
   revalidateWorkouts();
+  const source = sourcePlanId ? await getPlan(supabase, sourcePlanId).catch(() => null) : null;
+  // "Nova ficha" of a plan in use: confirm the switch and each day's workout in its objective.
+  if (source?.objectiveId && !source.endedOn) {
+    redirect(`/objectives/${source.objectiveId}/edit?plan=${planId}`);
+  }
   redirect(`/workouts/${planId}`);
 }
 
@@ -132,28 +73,15 @@ export async function updatePlan(
   const draft = parsePlanDraft(formData.get("plan"));
   if (!draft) return { error: SAVE_ERROR };
 
-  let plan;
-  let objectives: GymObjective[];
-  try {
-    [plan, objectives] = await Promise.all([getPlan(supabase, planId), getGymObjectives(supabase)]);
-  } catch (error) {
+  const plan = await getPlan(supabase, planId).catch((error: unknown) => {
     console.error("Failed to load workout plan", error);
-    return { error: SAVE_ERROR };
-  }
+    return undefined;
+  });
+  if (plan === undefined) return { error: SAVE_ERROR };
   if (!plan) return { error: "Ficha não encontrada." };
   if (plan.endedOn) return { error: "Fichas encerradas não podem ser editadas." };
 
-  const checked = checkObjective(draft, objectives);
-  if ("error" in checked) return { errors: { workouts: [], objective: checked.error } };
-  const { objective } = checked;
-  const otherPlan =
-    objective?.activePlan && objective.activePlan.id !== planId ? objective.activePlan : null;
-
   const errors = validatePlan(draft);
-  if (otherPlan && !draft.confirmEndOther) {
-    errors.objective = `Confirme que a ${otherPlan.title} será encerrada.`;
-  }
-
   const keptIds = new Set(draft.workouts.flatMap((workout) => (workout.id ? [workout.id] : [])));
   if (draft.workouts.some((workout) => workout.id && !plan.workouts.some((item) => item.id === workout.id))) {
     return { error: "A ficha mudou em outro lugar. Atualize a página." };
@@ -171,26 +99,9 @@ export async function updatePlan(
   }
   if (countPlanErrors(errors) > 0) return { errors };
 
-  if (otherPlan) {
-    const endedOn = addDays(today, -1) < otherPlan.startedOn ? otherPlan.startedOn : addDays(today, -1);
-    const { error } = await supabase
-      .from("workout_plans")
-      .update({ ended_on: endedOn })
-      .eq("id", otherPlan.id);
-    if (error) {
-      console.error("Failed to end the objective's other plan", error);
-      return { error: SAVE_ERROR };
-    }
-  }
-
-  // Changing or removing the objective clears the schedule (trigger in the gym schema migration).
   const { error: planError } = await supabase
     .from("workout_plans")
-    .update({
-      title: draft.title.trim(),
-      started_on: draft.startedOn,
-      objective_id: objective?.id,
-    })
+    .update({ title: draft.title.trim(), started_on: draft.startedOn })
     .eq("id", planId);
   if (planError) {
     console.error("Failed to update workout plan", planError);
@@ -235,49 +146,4 @@ export async function endPlan(planId: string): Promise<PlanFormState> {
   if (failure) return failure;
   revalidateWorkouts(planId);
   redirect(`/workouts/${planId}`);
-}
-
-export type ScheduleResult = { ok: true } | { ok: false; error: string };
-
-/** RN-28: replaces the plan's schedule; only the linked objective's weekdays are accepted. */
-export async function savePlanSchedule(
-  planId: string,
-  entries: { weekday: number; workoutId: string | null }[],
-): Promise<ScheduleResult> {
-  const { supabase } = await loadContext();
-  const plan = await getPlan(supabase, planId).catch(() => null);
-  if (!plan) return { ok: false, error: "Ficha não encontrada." };
-  if (plan.endedOn) return { ok: false, error: "Fichas encerradas não podem ser editadas." };
-  if (!plan.objectiveId || !plan.objectiveWeekdays) {
-    return { ok: false, error: "Agenda precisa de um objetivo. Vincule a ficha antes." };
-  }
-  const weekdays = plan.objectiveWeekdays;
-  const workoutIds = new Set(plan.workouts.map((workout) => workout.id));
-  if (!Array.isArray(entries)) return { ok: false, error: SAVE_ERROR };
-  for (const entry of entries) {
-    if (!weekdays.includes(entry.weekday)) {
-      return { ok: false, error: "Esse dia não está nos dias do objetivo." };
-    }
-    if (entry.workoutId !== null && !workoutIds.has(entry.workoutId)) {
-      return { ok: false, error: "Esse treino não é desta ficha. Atualize a página." };
-    }
-  }
-
-  const rows = entries.flatMap((entry) =>
-    entry.workoutId ? [{ plan_id: planId, weekday: entry.weekday, workout_id: entry.workoutId }] : [],
-  );
-  const cleared = entries.filter((entry) => !entry.workoutId).map((entry) => entry.weekday);
-  const [upserted, deleted] = await Promise.all([
-    rows.length > 0 ? supabase.from("workout_schedule").upsert(rows, { onConflict: "plan_id,weekday" }) : null,
-    cleared.length > 0
-      ? supabase.from("workout_schedule").delete().eq("plan_id", planId).in("weekday", cleared)
-      : null,
-  ]);
-  if (upserted?.error || deleted?.error) {
-    console.error("Failed to save the schedule", upserted?.error ?? deleted?.error);
-    return { ok: false, error: SAVE_ERROR };
-  }
-
-  revalidateWorkouts(planId);
-  return { ok: true };
 }

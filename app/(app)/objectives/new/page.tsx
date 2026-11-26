@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/app/utils/supabase/server";
 import { getLinkableGoals } from "../../goals/data";
 import { getAlternativeOptions, getGymFormContext } from "../data";
+import { getUserToday } from "@/app/utils/dates";
+import { getUserTimezone } from "../../dashboard/day-objectives";
 import { requireUser } from "@/app/utils/supabase/user";
 import { createObjective } from "../actions";
 import { ObjectiveForm } from "../objective-form";
@@ -23,12 +25,13 @@ export default function NewObjectivePage() {
 }
 
 async function NewObjectiveForm() {
-  await requireUser();
+  const user = await requireUser();
   const supabase = createClient(await cookies());
+  const today = getUserToday(await getUserTimezone(supabase, user.id));
   const [{ goals }, alternatives, gym] = await Promise.all([
     getLinkableGoals(supabase),
     getAlternativeOptions(supabase),
-    getGymFormContext(supabase),
+    getGymFormContext(supabase, today),
   ]);
   return (
     <ObjectiveForm

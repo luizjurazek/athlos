@@ -31,13 +31,6 @@ export type CopySource = {
   schedule: ScheduleEntry[];
 };
 
-export type GymObjective = {
-  id: string;
-  title: string;
-  weekdays: number[];
-  activePlan: { id: string; title: string; startedOn: string } | null;
-};
-
 const PLAN_COLUMNS =
   "id, title, objective_id, started_on, ended_on, objectives ( title, weekdays ), workouts ( id, label, description, position )";
 
@@ -106,32 +99,6 @@ export async function getPlan(supabase: Client, id: string): Promise<PlanDetail 
     schedule: schedule.data.map((entry) => ({ weekday: entry.weekday, workoutId: entry.workout_id })),
     exerciseCounts,
   };
-}
-
-/** Active gym objectives with their active plan (RN-25: at most one). */
-export async function getGymObjectives(supabase: Client): Promise<GymObjective[]> {
-  const [objectives, plans] = await Promise.all([
-    supabase
-      .from("objectives")
-      .select("id, title, weekdays")
-      .eq("activity_type", "gym")
-      .is("archived_at", null)
-      .order("created_at"),
-    supabase
-      .from("workout_plans")
-      .select("id, title, started_on, objective_id")
-      .is("ended_on", null)
-      .not("objective_id", "is", null),
-  ]);
-  if (objectives.error) throw objectives.error;
-  if (plans.error) throw plans.error;
-  return objectives.data.map((objective) => {
-    const plan = plans.data.find((item) => item.objective_id === objective.id);
-    return {
-      ...objective,
-      activePlan: plan ? { id: plan.id, title: plan.title, startedOn: plan.started_on } : null,
-    };
-  });
 }
 
 export function toCopySource(plan: PlanDetail): CopySource {

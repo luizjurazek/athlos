@@ -14,7 +14,12 @@ import {
   TITLE_MAX_LENGTH,
 } from "./options";
 
-export type ObjectiveFieldErrors = { weekdays?: string; activityType?: string; plan?: string };
+export type ObjectiveFieldErrors = {
+  weekdays?: string;
+  activityType?: string;
+  plan?: string;
+  schedule?: string;
+};
 export type FormState = { error?: string; errors?: ObjectiveFieldErrors } | undefined;
 
 
@@ -154,29 +159,33 @@ async function getActivePlanId(supabase: Client, objectiveId: string) {
   return data?.id ?? null;
 }
 
-/** RN-25: links the chosen free plan (or none); a previously linked plan becomes free. */
-async function syncLinkedPlan(supabase: Client, objectiveId: string, planId: string | null) {
-  const current = await getActivePlanId(supabase, objectiveId);
-  if (current === planId) return null;
-  if (current) {
-    const { error } = await supabase.from("workout_plans").update({ objective_id: null }).eq("id", current);
-    if (error) return error;
-  }
-  if (!planId) return null;
-  const { data, error } = await supabase
-    .from("workout_plans")
-    .update({ objective_id: objectiveId })
-    .eq("id", planId)
-    .is("objective_id", null)
-    .is("ended_on", null)
-    .select("id");
-  if (error) return error;
-  return data.length === 0 ? new Error("Plan is no longer free") : null;
-}
-
-function readPlanId(formData: FormData, input: ObjectiveInput) {
+/**
+ * RN-25/RN-34: the objective owns the link to its plan and each weekday's workout. The RPC links the
+ * chosen free plan (ending the previous one) or unlinks it, and replaces the schedule.
+ */
+async function savePlanChoice(
+  supabase: Client,
+  objectiveId: string,
+  formData: FormData,
+  input: ObjectiveInput,
+  userId: string,
+) {
   const value = formData.get("plan_id");
-  return input.activity_type && typeof value === "string" && value ? value : null;
+  const planId = typeof value === "string" && value ? value : null;
+  const schedule = planId
+    ? input.weekdays.flatMap((weekday) => {
+        const workoutId = formData.get(`schedule_${weekday}`);
+        return typeof workoutId === "string" && workoutId ? [{ weekday, workout_id: workoutId }] : [];
+      })
+    : [];
+  const today = getUserToday(await getUserTimezone(supabase, userId));
+  const { error } = await supabase.rpc("set_objective_plan", {
+    objective_id: objectiveId,
+    today,
+    plan_id: planId ?? undefined,
+    schedule,
+  });
+  return error;
 }
 
 function parseObjective(
@@ -215,7 +224,7 @@ export async function createObjective(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = parseObjective(formData);
   if ("error" in parsed) return { error: parsed.error };
 
@@ -255,7 +264,9 @@ export async function createObjective(
     return { error: "Não foi possível salvar as trocas do objetivo. Tente de novo." };
   }
 
-  const planError = await syncLinkedPlan(supabase, data.id, readPlanId(formData, parsed.input));
+  const planError = parsed.input.activity_type
+    ? await savePlanChoice(supabase, data.id, formData, parsed.input, user.id)
+    : null;
   if (planError) {
     console.error("Failed to link workout plan", planError);
     return { error: "O objetivo foi criado, mas não deu para vincular a ficha. Tente pela edição." };
@@ -351,10 +362,15 @@ export async function updateObjective(
   }
 
   if (parsed.input.activity_type) {
-    const planError = await syncLinkedPlan(supabase, id, readPlanId(formData, parsed.input));
+    const planError = await savePlanChoice(supabase, id, formData, parsed.input, user.id);
     if (planError) {
-      console.error("Failed to link workout plan", planError);
-      return { errors: { plan: "Não deu para vincular essa ficha. Ela pode ter sido vinculada ou encerrada. Atualize a página." } };
+      console.error("Failed to save the objective plan", planError);
+      return {
+        errors:
+          planError.code === "23503"
+            ? { plan: "Essa ficha não está mais livre ou um treino mudou. Atualize a página." }
+            : { schedule: "Não deu para salvar a ficha e os treinos de cada dia. Tente de novo." },
+      };
     }
   }
 

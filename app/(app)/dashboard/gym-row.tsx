@@ -116,8 +116,8 @@ export function GymPanel({
 
   if (!gym.planId) {
     return (
-      <Link className={styles.gymStrip} href={`/workouts/new?objective=${objective.id}`}>
-        <span>Sem ficha · Criar ficha</span>
+      <Link className={styles.gymStrip} href={`/objectives/${objective.id}/edit`}>
+        <span>Sem ficha · Escolher ficha</span>
         <svg className={styles.gymChevron} viewBox="0 0 24 24" aria-hidden="true">
           <path d="m9 5 7 7-7 7" />
         </svg>

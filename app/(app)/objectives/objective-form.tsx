@@ -17,6 +17,7 @@ import {
 import type { LinkableGoal } from "../goals/data";
 import type { FormState } from "./actions";
 import g from "../goals/goals.module.css";
+import { addDays, formatDayMonth } from "@/app/utils/dates";
 import type { AlternativeOption, GymFormContext } from "./data";
 import { ObjectiveIcon } from "./objective-icon";
 import {
@@ -34,6 +35,7 @@ type ObjectiveFormProps = {
     "title" | "color" | "icon" | "weekdays" | "reschedulable" | "activity_type"
   >;
   gym: GymFormContext;
+  initialPlanId?: string;
   goals: LinkableGoal[];
   linkedGoalIds?: string[];
   alternatives: AlternativeOption[];
@@ -62,6 +64,7 @@ export function ObjectiveForm({
   alternatives,
   alternativeIds: initialAlternativeIds = [],
   gym,
+  initialPlanId,
   submitLabel,
 }: ObjectiveFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -77,13 +80,28 @@ export function ObjectiveForm({
   const [goalIds, setGoalIds] = useState(linkedGoalIds);
   const [alternativeIds, setAlternativeIds] = useState(initialAlternativeIds);
   const [activityType, setActivityType] = useState<"" | "gym">(objective?.activity_type ?? "");
-  const [planId, setPlanId] = useState(gym.linkedPlan?.id ?? "");
+  const [planId, setPlanId] = useState(initialPlanId ?? gym.linkedPlan?.id ?? "");
+  const plan = gym.plans.find((item) => item.id === planId) ?? null;
+  // Explicit choices per weekday ("" = no fixed workout); days without one follow the suggestion.
+  const [dayChoices, setDayChoices] = useState<Record<number, string>>(() =>
+    planId && planId === gym.linkedPlan?.id
+      ? linkedChoices(gym, objective?.weekdays ?? [])
+      : carryOverSchedule(gym, planId, objective?.weekdays ?? []),
+  );
   const isGym = activityType === "gym";
   const takenTitles = new Map<number, string>(
     isGym ? gym.takenDays.map((taken) => [taken.weekday, taken.title]) : [],
   );
   const conflictDays = weekdays.filter((day) => takenTitles.has(day));
-  const droppedScheduleDays = normalizeWeekdays(gym.scheduledWeekdays).filter((day) => !weekdays.includes(day));
+  const dayWorkout = (day: Weekday, index: number) =>
+    dayChoices[day] ?? (plan && plan.workouts.length > 0 ? plan.workouts[index % plan.workouts.length].id : "");
+  const linkedTitle = gym.linkedPlan?.title;
+  const planNotice =
+    gym.linkedPlan && planId !== gym.linkedPlan.id
+      ? planId
+        ? `A ${linkedTitle} será encerrada em ${formatDayMonth(endOfLinkedPlan(gym))}. O histórico dela continua em Treinos.`
+        : `A ${linkedTitle} fica livre: continua em Treinos, sem objetivo e sem agenda.`
+      : null;
   const weekdaysError =
     conflictDays.length > 0
       ? `${formatWeekdays(conflictDays)} já ${conflictDays.length === 1 ? "é" : "são"} de outro objetivo de academia. Dois objetivos de academia não podem cair no mesmo dia.`
@@ -227,11 +245,6 @@ export function ObjectiveForm({
                 );
               })}
             </div>
-            {isGym && gym.linkedPlan && droppedScheduleDays.length > 0 && (
-              <p className={g.fieldHint} role="status">
-                Ao salvar, a agenda da {gym.linkedPlan.title} perde {formatWeekdays(droppedScheduleDays).toLowerCase()}.
-              </p>
-            )}
             {weekdaysError ? (
               <p className={g.fieldError}>{weekdaysError}</p>
             ) : (
@@ -253,7 +266,10 @@ export function ObjectiveForm({
                   name="plan_id"
                   aria-label="Ficha"
                   value={planId}
-                  onChange={(event) => setPlanId(event.target.value)}
+                  onChange={(event) => {
+                    setPlanId(event.target.value);
+                    setDayChoices(carryOverSchedule(gym, event.target.value, weekdays, planId, dayChoices));
+                  }}
                 >
                   <option value="">Nenhuma</option>
                   {gym.plans.map((plan) => (
@@ -265,13 +281,53 @@ export function ObjectiveForm({
               </div>
               {state?.errors?.plan ? (
                 <p className={g.fieldError}>{state.errors.plan}</p>
+              ) : planNotice ? (
+                <p className={g.fieldHint} role="status">
+                  {planNotice}
+                </p>
               ) : (
                 <p className={styles.hint}>
                   {gym.plans.length === 0
-                    ? "Nenhuma ficha livre. Sem ficha, o objetivo funciona normalmente: só não mostra o treino no Hoje."
-                    : "Mostra as fichas livres. Sem ficha, o objetivo funciona normalmente: só não mostra o treino no Hoje."}
+                    ? "Nenhuma ficha livre. Crie uma em Treinos. Sem ficha, o objetivo funciona normalmente: só não mostra o treino no Hoje."
+                    : "A ficha traz os treinos; aqui você escolhe qual treino cai em cada dia."}
                 </p>
               )}
+            </fieldset>
+          )}
+          {isGym && plan && (
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>Treino de cada dia</legend>
+              {plan.workouts.length === 0 ? (
+                <p className={styles.hint}>A {plan.title} ainda não tem treinos.</p>
+              ) : (
+                <ul className={styles.list}>
+                  {normalizeWeekdays(weekdays).map((day, index) => (
+                    <li key={day} className={styles.scheduleDayRow}>
+                      <label htmlFor={`schedule-${day}`}>{WEEKDAYS[day].long}</label>
+                      <select
+                        id={`schedule-${day}`}
+                        className={styles.scheduleDaySelect}
+                        name={`schedule_${day}`}
+                        value={dayWorkout(day, index)}
+                        onChange={(event) =>
+                          setDayChoices((current) => ({ ...current, [day]: event.target.value }))
+                        }
+                      >
+                        {plan.workouts.map((workout) => (
+                          <option key={workout.id} value={workout.id}>
+                            {workout.description ? `${workout.label} — ${workout.description}` : `Treino ${workout.label}`}
+                          </option>
+                        ))}
+                        <option value="">Sem treino fixo</option>
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {state?.errors?.schedule && <p className={g.fieldError}>{state.errors.schedule}</p>}
+              <p className={styles.hint}>
+                &quot;Sem treino fixo&quot; faz o Hoje perguntar qual treino fazer. Para trocar só um dia, use o Hoje.
+              </p>
             </fieldset>
           )}
           <div className={styles.fieldset}>
@@ -409,4 +465,43 @@ export function ObjectiveForm({
       </button>
     </form>
   );
+}
+
+/**
+ * Picking another plan keeps each day's workout letter when the new plan has it (a copied plan keeps
+ * A, B, C); other days fall back to the A, B, C… suggestion.
+ */
+function carryOverSchedule(
+  gym: GymFormContext,
+  nextPlanId: string,
+  weekdays: readonly number[],
+  previousPlanId: string = gym.linkedPlan?.id ?? "",
+  previousChoices?: Record<number, string>,
+): Record<number, string> {
+  const next = gym.plans.find((item) => item.id === nextPlanId);
+  const previous = gym.plans.find((item) => item.id === previousPlanId);
+  if (!next || !previous) return {};
+  const choices =
+    previousChoices ?? (previousPlanId === gym.linkedPlan?.id ? linkedChoices(gym, weekdays) : {});
+  const carried: Record<number, string> = {};
+  for (const [weekday, workoutId] of Object.entries(choices)) {
+    const label = previous.workouts.find((workout) => workout.id === workoutId)?.label;
+    const match = label ? next.workouts.find((workout) => workout.label === label) : undefined;
+    carried[Number(weekday)] = workoutId === "" ? "" : (match?.id ?? "");
+  }
+  return carried;
+}
+
+/** The linked plan's schedule as choices; a scheduled weekday without a row is "Sem treino fixo". */
+function linkedChoices(gym: GymFormContext, weekdays: readonly number[]): Record<number, string> {
+  return Object.fromEntries(
+    weekdays.map((weekday) => [weekday, gym.schedule.find((row) => row.weekday === weekday)?.workoutId ?? ""]),
+  );
+}
+
+/** Same rule as set_objective_plan: the replaced plan ends yesterday, or on its start if that is later. */
+function endOfLinkedPlan(gym: GymFormContext) {
+  const yesterday = addDays(gym.today, -1);
+  const start = gym.linkedPlan?.startedOn ?? yesterday;
+  return start > yesterday ? start : yesterday;
 }

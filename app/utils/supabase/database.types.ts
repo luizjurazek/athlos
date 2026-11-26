@@ -828,6 +828,15 @@ export type Database = {
         Args: { name: string; source: string; source_id: string };
         Returns: undefined;
       };
+      set_objective_plan: {
+        Args: {
+          objective_id: string;
+          plan_id?: string;
+          schedule?: Json;
+          today: string;
+        };
+        Returns: undefined;
+      };
       start_workout_plan: {
         Args: {
           objective_id?: string;

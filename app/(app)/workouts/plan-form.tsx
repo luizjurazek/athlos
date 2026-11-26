@@ -1,18 +1,14 @@
 "use client";
 
 import { startTransition, useActionState, useId, useState, type FormEvent, type ReactNode } from "react";
-import { addDays, formatNumericDate } from "@/app/utils/dates";
-import { formatWeekdays, isWeekday, WEEKDAYS, type Weekday } from "@/app/utils/weekdays";
 import g from "../goals/goals.module.css";
 import ui from "../objectives/objectives.module.css";
 import type { PlanFormState } from "./actions";
-import type { CopySource, GymObjective } from "./data";
+import type { CopySource } from "./data";
 import {
   countPlanErrors,
-  formatWorkoutName,
   nextWorkoutLabel,
   PLAN_TITLE_MAX_LENGTH,
-  suggestSchedule,
   validatePlan,
   WORKOUT_DESCRIPTION_MAX_LENGTH,
   WORKOUT_LABEL_MAX_LENGTH,
@@ -21,26 +17,20 @@ import {
 } from "./validation";
 import styles from "./workouts.module.css";
 
-type ScheduleByKey = Partial<Record<Weekday, string | null>>;
-
 type PlanFormProps = {
   mode: "create" | "edit";
   action: (prev: PlanFormState, formData: FormData) => Promise<PlanFormState>;
-  objectives: GymObjective[];
-  today: string;
   initial: {
     title: string;
     startedOn: string;
-    objectiveId: string | null;
     workouts: { id: string | null; label: string; description: string | null }[];
   };
-  /** Create: a plan to copy from (the "Nova ficha" origin). Also the objectives' active plans. */
-  copySources?: Record<string, CopySource>;
-  sourcePlanId?: string | null;
-  /** Edit: this plan's id and the workouts that cannot be deleted (RN-26). */
-  planId?: string;
+  /** Create: the plan "Nova ficha a partir desta" copies workouts and exercises from. */
+  copySource?: CopySource | null;
+  /** Edit: workouts that cannot be deleted (RN-26). */
   lockedWorkoutIds?: string[];
-  hasSchedule?: boolean;
+  /** Objective using this plan, shown as context (the link itself is made in the objective). */
+  objectiveTitle?: string | null;
 };
 
 let keySequence = 0;
@@ -53,70 +43,34 @@ function blankWorkout(labels: string[]): WorkoutDraft {
   return { key: newKey(), id: null, label: nextWorkoutLabel(labels), description: "", copyFromId: null };
 }
 
-function suggestByKey(weekdays: readonly number[], workouts: WorkoutDraft[]): ScheduleByKey {
-  const byIndex = suggestSchedule(weekdays, workouts.length);
-  const schedule: ScheduleByKey = {};
-  for (const weekday of weekdays.filter(isWeekday)) {
-    const index = byIndex[weekday];
-    schedule[weekday] = index == null ? null : workouts[index].key;
-  }
-  return schedule;
-}
-
-function fromSource(source: CopySource, weekdays: readonly number[]) {
-  const workouts = source.workouts.map((workout) => ({
+function fromSource(source: CopySource): WorkoutDraft[] {
+  return source.workouts.map((workout) => ({
     key: newKey(),
     id: null,
     label: workout.label,
     description: workout.description ?? "",
     copyFromId: workout.id,
   }));
-  const schedule: ScheduleByKey = {};
-  for (const weekday of weekdays.filter(isWeekday)) {
-    const entry = source.schedule.find((item) => item.weekday === weekday);
-    const index = entry ? source.workouts.findIndex((workout) => workout.id === entry.workoutId) : -1;
-    schedule[weekday] = index >= 0 ? workouts[index].key : null;
-  }
-  return { workouts, schedule };
 }
 
+/**
+ * The plan only holds its workouts (and their exercises, added on each workout's screen). Which
+ * objective uses it and the workout of each weekday are chosen in the gym objective.
+ */
 export function PlanForm({
   mode,
   action,
-  objectives,
-  today,
   initial,
-  copySources = {},
-  sourcePlanId = null,
-  planId,
+  copySource = null,
   lockedWorkoutIds = [],
-  hasSchedule = false,
+  objectiveTitle = null,
 }: PlanFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const [title, setTitle] = useState(initial.title);
   const [startedOn, setStartedOn] = useState(initial.startedOn);
-  const [objectiveId, setObjectiveId] = useState(initial.objectiveId ?? "");
-  const objective = objectives.find((item) => item.id === objectiveId) ?? null;
-  const weekdays = objective?.weekdays ?? [];
-
-  // Create: copy from the chosen objective's active plan, or from a free origin plan.
-  const sourcePlan = sourcePlanId ? copySources[sourcePlanId] : undefined;
-  const copySource =
-    mode === "create"
-      ? objective
-        ? (objective.activePlan && copySources[objective.activePlan.id]) || null
-        : sourcePlan && !objectives.some((item) => item.activePlan?.id === sourcePlan.id)
-          ? sourcePlan
-          : null
-      : null;
-
-  const initialCopy = mode === "create" && Boolean(sourcePlanId) && copySource?.id === sourcePlanId;
-  const [copy, setCopy] = useState(initialCopy);
-  const [initialCopied] = useState(() =>
-    initialCopy && copySource ? fromSource(copySource, weekdays) : null,
-  );
+  const [copy, setCopy] = useState(Boolean(copySource));
   const [workouts, setWorkouts] = useState<WorkoutDraft[]>(() => {
-    if (initialCopied) return initialCopied.workouts;
+    if (copySource) return fromSource(copySource);
     if (initial.workouts.length > 0) {
       return initial.workouts.map((workout) => ({
         key: newKey(),
@@ -128,58 +82,12 @@ export function PlanForm({
     }
     return [blankWorkout([])];
   });
-  const [schedule, setSchedule] = useState<ScheduleByKey>(
-    () => initialCopied?.schedule ?? suggestByKey(weekdays, workouts),
-  );
-  // While untouched, the schedule keeps following the A, B, C… suggestion as workouts change.
-  const [scheduleEdited, setScheduleEdited] = useState(initialCopy);
-  const [confirmEndOther, setConfirmEndOther] = useState(false);
   const [clientErrors, setClientErrors] = useState<PlanErrors | null>(null);
   const errors = clientErrors ?? state?.errors;
 
-  const otherPlan =
-    objective?.activePlan && objective.activePlan.id !== planId ? objective.activePlan : null;
-  const endingPlan = mode === "create" ? (objective ? otherPlan : copy ? copySource : null) : otherPlan;
-  const endingOn =
-    mode === "create"
-      ? addDays(startedOn, -1)
-      : otherPlan && addDays(today, -1) >= otherPlan.startedOn
-        ? addDays(today, -1)
-        : (otherPlan?.startedOn ?? today);
-
-  function applyObjective(nextId: string) {
-    setObjectiveId(nextId);
-    setConfirmEndOther(false);
-    const next = objectives.find((item) => item.id === nextId) ?? null;
-    const nextWeekdays = next?.weekdays ?? [];
-    if (mode === "create" && copy) {
-      const nextSource = next?.activePlan ? copySources[next.activePlan.id] : undefined;
-      if (nextSource) {
-        const copied = fromSource(nextSource, nextWeekdays);
-        setWorkouts(copied.workouts);
-        setSchedule(copied.schedule);
-        setScheduleEdited(true);
-        return;
-      }
-      setCopy(false);
-    }
-    setScheduleEdited(false);
-    setSchedule(suggestByKey(nextWeekdays, workouts));
-  }
-
   function toggleCopy(checked: boolean) {
     setCopy(checked);
-    if (checked && copySource) {
-      const copied = fromSource(copySource, weekdays);
-      setWorkouts(copied.workouts);
-      setSchedule(copied.schedule);
-      setScheduleEdited(true);
-    } else {
-      const fresh = [blankWorkout([])];
-      setWorkouts(fresh);
-      setSchedule(suggestByKey(weekdays, fresh));
-      setScheduleEdited(false);
-    }
+    setWorkouts(checked && copySource ? fromSource(copySource) : [blankWorkout([])]);
   }
 
   function updateWorkout(index: number, patch: Partial<WorkoutDraft>) {
@@ -187,26 +95,11 @@ export function PlanForm({
   }
 
   function addWorkout() {
-    const next = [...workouts, blankWorkout(workouts.map((workout) => workout.label))];
-    setWorkouts(next);
-    if (!scheduleEdited) setSchedule(suggestByKey(weekdays, next));
+    setWorkouts((current) => [...current, blankWorkout(current.map((workout) => workout.label))]);
   }
 
   function removeWorkout(index: number) {
-    const removedKey = workouts[index].key;
-    const next = workouts.filter((_, i) => i !== index);
-    setWorkouts(next);
-    if (!scheduleEdited) {
-      setSchedule(suggestByKey(weekdays, next));
-      return;
-    }
-    setSchedule((current) => {
-      const next: ScheduleByKey = {};
-      for (const day of WEEKDAYS) {
-        if (day.value in current) next[day.value] = current[day.value] === removedKey ? null : current[day.value];
-      }
-      return next;
-    });
+    setWorkouts((current) => current.filter((_, i) => i !== index));
   }
 
   function moveWorkout(index: number, offset: -1 | 1) {
@@ -217,38 +110,10 @@ export function PlanForm({
     });
   }
 
-  function buildDraft() {
-    const scheduleByIndex: Partial<Record<Weekday, number | null>> = {};
-    for (const weekday of weekdays.filter(isWeekday)) {
-      const key = schedule[weekday];
-      const index = key ? workouts.findIndex((workout) => workout.key === key) : -1;
-      scheduleByIndex[weekday] = index >= 0 ? index : null;
-    }
-    return {
-      title,
-      startedOn,
-      objectiveId: objectiveId || null,
-      workouts,
-      schedule: scheduleByIndex,
-      confirmEndOther,
-    };
-  }
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const draft = buildDraft();
-    const found = validatePlan(draft, {
-      minStartedOn:
-        mode === "create" && endingPlan
-          ? {
-              day: endingPlan.startedOn,
-              message: `A ${endingPlan.title} começou em ${formatNumericDate(endingPlan.startedOn)}. A nova precisa começar depois.`,
-            }
-          : undefined,
-    });
-    if (mode === "edit" && otherPlan && !confirmEndOther) {
-      found.objective = `Confirme que a ${otherPlan.title} será encerrada.`;
-    }
+    const draft = { title, startedOn, workouts };
+    const found = validatePlan(draft);
     if (countPlanErrors(found) > 0) {
       setClientErrors(found);
       return;
@@ -274,25 +139,29 @@ export function PlanForm({
       )}
 
       <Field label="Nome" error={errors?.title}>
-          {(id, describedBy) => (
-            <div className={ui.group} data-invalid={Boolean(errors?.title) || undefined}>
-              <input
-                id={id}
-                className={ui.input}
-                type="text"
-                autoComplete="off"
-                placeholder="Ex.: Ficha Novembro"
-                maxLength={PLAN_TITLE_MAX_LENGTH}
-                value={title}
-                aria-invalid={Boolean(errors?.title) || undefined}
-                aria-describedby={describedBy}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </div>
-          )}
+        {(id, describedBy) => (
+          <div className={ui.group} data-invalid={Boolean(errors?.title) || undefined}>
+            <input
+              id={id}
+              className={ui.input}
+              type="text"
+              autoComplete="off"
+              placeholder="Ex.: Ficha Novembro"
+              maxLength={PLAN_TITLE_MAX_LENGTH}
+              value={title}
+              aria-invalid={Boolean(errors?.title) || undefined}
+              aria-describedby={describedBy}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </div>
+        )}
       </Field>
 
-      <Field label="Começa em" error={errors?.startedOn}>
+      <Field
+        label="Começa em"
+        error={errors?.startedOn}
+        hint={objectiveTitle ? `Usada pela ${objectiveTitle}: o treino do dia vale a partir desta data.` : undefined}
+      >
         {(id, describedBy) => (
           <div className={ui.group} data-invalid={Boolean(errors?.startedOn) || undefined}>
             <input
@@ -308,56 +177,6 @@ export function PlanForm({
         )}
       </Field>
 
-      <Field
-        label="Objetivo de academia (opcional)"
-        error={errors?.objective}
-        hint={
-          objectives.length === 0
-            ? "Você ainda não tem objetivo do tipo Academia. A ficha fica livre: sem agenda e fora do Hoje. Dá para vincular depois."
-            : 'A agenda usa os dias deste objetivo. Escolha "Nenhum" para uma ficha livre (sem agenda e fora do Hoje); dá para vincular depois.'
-        }
-      >
-        {(id, describedBy) => (
-          <div className={ui.group} data-invalid={Boolean(errors?.objective) || undefined}>
-            <select
-              id={id}
-              className={styles.select}
-              value={objectiveId}
-              aria-describedby={describedBy}
-              onChange={(event) => applyObjective(event.target.value)}
-            >
-              <option value="">Nenhum (ficha livre)</option>
-              {objectives.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} · {formatWeekdays(item.weekdays)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </Field>
-
-      {mode === "edit" && hasSchedule && objectiveId !== (initial.objectiveId ?? "") && (
-        <Notice>Trocar o objetivo apaga a agenda desta ficha.</Notice>
-      )}
-
-      {endingPlan && (mode === "create" || otherPlan) && (
-        <Notice>
-          A {endingPlan.title} será encerrada em {formatNumericDate(endingOn)}. O histórico dela continua
-          em Encerradas.
-        </Notice>
-      )}
-      {mode === "edit" && otherPlan && (
-        <label className={styles.checkRow}>
-          <input
-            className={g.checkbox}
-            type="checkbox"
-            checked={confirmEndOther}
-            onChange={(event) => setConfirmEndOther(event.target.checked)}
-          />
-          <span>Encerrar a {otherPlan.title} e vincular esta ficha</span>
-        </label>
-      )}
       {mode === "create" && copySource && (
         <label className={styles.checkRow}>
           <input
@@ -366,7 +185,7 @@ export function PlanForm({
             checked={copy}
             onChange={(event) => toggleCopy(event.target.checked)}
           />
-          <span>Copiar treinos, exercícios, cargas e agenda da {copySource.title}</span>
+          <span>Copiar treinos, exercícios e cargas da {copySource.title}</span>
         </label>
       )}
 
@@ -452,46 +271,12 @@ export function PlanForm({
           </svg>
           Adicionar treino {nextWorkoutLabel(workouts.map((workout) => workout.label))}
         </button>
-        {mode === "create" && <p className={ui.hint}>Os exercícios entram depois, na tela de cada treino.</p>}
+        <p className={ui.hint}>
+          {mode === "create"
+            ? "Os exercícios entram depois, na tela de cada treino. O treino de cada dia é escolhido no objetivo de academia."
+            : "O treino de cada dia é escolhido no objetivo de academia que usa esta ficha."}
+        </p>
       </section>
-
-      {mode === "create" && objective && (
-        <section className={ui.section}>
-          <h2 className={ui.sectionTitle}>Agenda · dias de {objective.title}</h2>
-          <ul className={`${ui.list} ${styles.list}`}>
-            {WEEKDAYS.filter((day) => weekdays.includes(day.value)).map((day) => (
-              <li key={day.value} className={styles.scheduleRow}>
-                <label className={styles.scheduleDay} htmlFor={`schedule-${day.value}`}>
-                  {day.long}
-                </label>
-                <select
-                  id={`schedule-${day.value}`}
-                  className={styles.scheduleSelect}
-                  value={schedule[day.value] ?? ""}
-                  onChange={(event) => {
-                    setScheduleEdited(true);
-                    setSchedule((current) => ({ ...current, [day.value]: event.target.value || null }));
-                  }}
-                >
-                  {workouts.map((workout) => (
-                    <option key={workout.key} value={workout.key}>
-                      {formatWorkoutName({
-                        label: workout.label || "?",
-                        description: workout.description.trim() || null,
-                      })}
-                    </option>
-                  ))}
-                  <option value="">Sem treino fixo</option>
-                </select>
-              </li>
-            ))}
-          </ul>
-          {errors?.schedule && <p className={g.fieldError}>{errors.schedule}</p>}
-          <p className={ui.hint}>
-            &quot;Sem treino fixo&quot; faz o Hoje perguntar qual treino fazer naquele dia.
-          </p>
-        </section>
-      )}
 
       <div className={g.saveBar}>
         {errorCount > 0 && (
@@ -538,18 +323,6 @@ function Field({
         )
       )}
     </div>
-  );
-}
-
-function Notice({ children }: { children: ReactNode }) {
-  return (
-    <p className={styles.notice}>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8v5M12 16.5v.01" />
-      </svg>
-      <span>{children}</span>
-    </p>
   );
 }
 

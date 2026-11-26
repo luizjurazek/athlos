@@ -8,7 +8,7 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../../dashboard/day-objectives";
 import ui from "../../objectives/objectives.module.css";
 import { createPlan } from "../actions";
-import { getGymObjectives, getPlan, toCopySource, type CopySource } from "../data";
+import { getPlan, toCopySource } from "../data";
 import { PlanForm } from "../plan-form";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,40 +28,20 @@ export default function NewPlanPage({ searchParams }: PageProps<"/workouts/new">
 async function NewPlanForm({ searchParams }: Pick<PageProps<"/workouts/new">, "searchParams">) {
   const params = await searchParams;
   const from = typeof params.from === "string" && UUID.test(params.from) ? params.from : null;
-  const preselected =
-    typeof params.objective === "string" && UUID.test(params.objective) ? params.objective : null;
   const user = await requireUser();
   const supabase = createClient(await cookies());
-  const [objectives, timezone] = await Promise.all([
-    getGymObjectives(supabase),
+  const [source, timezone] = await Promise.all([
+    from ? getPlan(supabase, from) : null,
     getUserTimezone(supabase, user.id),
   ]);
-  const today = getUserToday(timezone);
-
-  const sourceIds = new Set(objectives.flatMap((objective) => (objective.activePlan ? [objective.activePlan.id] : [])));
-  if (from) sourceIds.add(from);
-  const plans = await Promise.all([...sourceIds].map((id) => getPlan(supabase, id)));
-  const copySources: Record<string, CopySource> = {};
-  for (const plan of plans) {
-    if (plan && !plan.endedOn) copySources[plan.id] = toCopySource(plan);
-  }
-  const fromPlan = from ? copySources[from] : undefined;
-  const fromObjectiveId = plans.find((plan) => plan?.id === from)?.objectiveId ?? null;
-  const objectiveId = fromPlan
-    ? fromObjectiveId
-    : objectives.some((objective) => objective.id === preselected)
-      ? preselected
-      : null;
+  const copySource = source ? toCopySource(source) : null;
 
   return (
     <PlanForm
       mode="create"
-      action={createPlan.bind(null, fromPlan ? fromPlan.id : null)}
-      objectives={objectives}
-      today={today}
-      copySources={copySources}
-      sourcePlanId={fromPlan?.id ?? null}
-      initial={{ title: "", startedOn: today, objectiveId, workouts: [] }}
+      action={createPlan.bind(null, copySource?.id ?? null)}
+      copySource={copySource}
+      initial={{ title: "", startedOn: getUserToday(timezone), workouts: [] }}
     />
   );
 }

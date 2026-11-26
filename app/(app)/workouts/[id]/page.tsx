@@ -98,7 +98,7 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
           </ul>
         </section>
 
-        <ScheduleSection plan={plan} />
+        <UsageSection plan={plan} />
       </div>
       )}
 
@@ -107,31 +107,32 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
   );
 }
 
-function ScheduleSection({ plan }: { plan: PlanDetail }) {
-  if (!plan.objectiveId || !plan.objectiveWeekdays) {
+/** The plan only holds workouts; the objective using it decides the workout of each weekday. */
+function UsageSection({ plan }: { plan: PlanDetail }) {
+  const days = WEEKDAYS.filter((day) => plan.objectiveWeekdays?.includes(day.value));
+  if (!plan.objectiveId) {
     return (
       <section className={ui.section}>
-        <h2 className={ui.sectionTitle}>Agenda</h2>
+        <h2 className={ui.sectionTitle}>Uso</h2>
         <p className={ui.empty}>
-          Agenda precisa de um objetivo. Ficha livre não tem dias fixos nem aparece no Hoje.
+          Ficha livre: não aparece no Hoje. Para usar, escolha esta ficha num objetivo de academia e defina o treino
+          de cada dia.
         </p>
         {!plan.endedOn && (
-          <Link className={ui.editLink} href={`/workouts/${plan.id}/edit`}>
-            Vincular a um objetivo
+          <Link className={ui.editLink} href="/objectives">
+            Escolher num objetivo
           </Link>
         )}
       </section>
     );
   }
-
-  const days = WEEKDAYS.filter((day) => plan.objectiveWeekdays?.includes(day.value));
   return (
     <section className={ui.section}>
       <div className={styles.sectionHeader}>
-        <h2 className={ui.sectionTitle}>Agenda · dias de {plan.objectiveTitle}</h2>
+        <h2 className={ui.sectionTitle}>Treino de cada dia · {plan.objectiveTitle}</h2>
         {!plan.endedOn && (
-          <Link className={styles.textLink} href={`/workouts/${plan.id}/schedule`}>
-            Editar agenda
+          <Link className={styles.textLink} href={`/objectives/${plan.objectiveId}/edit`}>
+            Alterar no objetivo
           </Link>
         )}
       </div>
@@ -154,7 +155,6 @@ function ScheduleSection({ plan }: { plan: PlanDetail }) {
           );
         })}
       </ul>
-      <p className={ui.hint}>&quot;Sem treino fixo&quot; faz o Hoje perguntar qual treino fazer no dia.</p>
     </section>
   );
 }

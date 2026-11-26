@@ -43,8 +43,8 @@ export function PlanActionsPanel({
         )}
       </div>
       <p className={ui.hint}>
-        Nova ficha encerra esta na véspera do início e pode copiar treinos, exercícios, cargas e agenda.
-        Encerrar sem criar outra guarda tudo em Encerradas.
+        Nova ficha copia treinos, exercícios e cargas. Se esta ficha estiver num objetivo, a troca e o treino de
+        cada dia são confirmados nele. Encerrar guarda tudo em Encerradas.
       </p>
     </section>
   );

@@ -9,7 +9,7 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { getUserTimezone } from "../../../dashboard/day-objectives";
 import ui from "../../../objectives/objectives.module.css";
 import { updatePlan } from "../../actions";
-import { getGymObjectives, getPlan, getWorkoutsWithHistory } from "../../data";
+import { getPlan, getWorkoutsWithHistory } from "../../data";
 import { PlanForm } from "../../plan-form";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,11 +29,7 @@ async function EditPlan({ params }: Pick<PageProps<"/workouts/[id]/edit">, "para
   if (!UUID.test(id)) notFound();
   const user = await requireUser();
   const supabase = createClient(await cookies());
-  const [plan, objectives, timezone] = await Promise.all([
-    getPlan(supabase, id),
-    getGymObjectives(supabase),
-    getUserTimezone(supabase, user.id),
-  ]);
+  const [plan, timezone] = await Promise.all([getPlan(supabase, id), getUserTimezone(supabase, user.id)]);
   if (!plan) notFound();
   if (plan.endedOn) redirect(`/workouts/${id}`);
   const today = getUserToday(timezone);
@@ -50,17 +46,9 @@ async function EditPlan({ params }: Pick<PageProps<"/workouts/[id]/edit">, "para
       <PlanForm
         mode="edit"
         action={updatePlan.bind(null, id)}
-        objectives={objectives}
-        today={today}
-        planId={id}
         lockedWorkoutIds={[...locked]}
-        hasSchedule={plan.schedule.length > 0}
-        initial={{
-          title: plan.title,
-          startedOn: plan.startedOn,
-          objectiveId: plan.objectiveId,
-          workouts: plan.workouts,
-        }}
+        objectiveTitle={plan.objectiveTitle}
+        initial={{ title: plan.title, startedOn: plan.startedOn, workouts: plan.workouts }}
       />
     </>
   );

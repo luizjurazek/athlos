@@ -204,6 +204,16 @@ async function ObjectiveDetail({
       ? (await getGymDays(supabase, [{ id, reschedule: selectedOccurrence.reschedule }], selectedDay))[id]
       : undefined;
 
+  const activePlan = isGym
+    ? await supabase
+        .from("workout_plans")
+        .select("id, title, workouts ( id, label, description ), workout_schedule ( weekday, workout_id )")
+        .eq("objective_id", id)
+        .is("ended_on", null)
+        .maybeSingle()
+    : null;
+  if (activePlan?.error) throw activePlan.error;
+
   const meta = [formatWeekdays(objective.weekdays).toLowerCase()];
   if (objective.reschedulable) meta.push("pode mudar de dia");
   if (alternativeTitles.length > 0) meta.push(`pode ser trocado por ${formatList(alternativeTitles)}`);
@@ -249,6 +259,13 @@ async function ObjectiveDetail({
               today={today}
               gym={selectedGym}
               canSwap={Boolean(selectedOccurrence?.due) && isWithinWorkoutSwapWindow(selectedDay, today)}
+            />
+          )}
+          {isGym && (
+            <PlanSection
+              objectiveId={id}
+              weekdays={objective.weekdays}
+              plan={activePlan?.data ?? null}
             />
           )}
           <div className={styles.streaks}>
@@ -489,6 +506,62 @@ function SelectedDayWorkout({
           <DayWorkoutSwap objective={objective} gym={gym} current={workout} day={day} canSwap={canSwap} />
         </div>
       )}
+    </section>
+  );
+}
+
+function PlanSection({
+  objectiveId,
+  weekdays,
+  plan,
+}: {
+  objectiveId: string;
+  weekdays: number[];
+  plan: {
+    id: string;
+    title: string;
+    workouts: { id: string; label: string; description: string | null }[];
+    workout_schedule: { weekday: number; workout_id: string }[];
+  } | null;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="plan-title">
+      <h2 id="plan-title" className={styles.sectionTitle}>
+        Ficha e treinos
+      </h2>
+      {!plan ? (
+        <p className={styles.empty}>Sem ficha. Escolha uma em Editar para ver o treino do dia no Hoje.</p>
+      ) : (
+        <ul className={styles.list}>
+          <li>
+            <Link className={styles.row} href={`/workouts/${plan.id}`}>
+              <span className={styles.rowText}>
+                <span className={styles.rowTitle}>{plan.title}</span>
+                <span className={styles.rowMeta}>
+                  {plan.workouts.length === 1 ? "1 treino" : `${plan.workouts.length} treinos`}
+                </span>
+              </span>
+            </Link>
+          </li>
+          {WEEKDAYS.filter((day) => weekdays.includes(day.value)).map((day) => {
+            const entry = plan.workout_schedule.find((row) => row.weekday === day.value);
+            const workout = entry && plan.workouts.find((item) => item.id === entry.workout_id);
+            return (
+              <li key={day.value} className={styles.scheduleDayRow}>
+                <span>{day.long}</span>
+                <span className={styles.rowMeta}>
+                  {workout
+                    ? `${workout.label}${workout.description ? ` — ${workout.description}` : ""}`
+                    : "Sem treino fixo"}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <Link className={styles.editLink} href={`/objectives/${objectiveId}/edit`}>
+        {plan ? "Alterar ficha ou treinos" : "Escolher ficha"}
+      </Link>
     </section>
   );
 }
