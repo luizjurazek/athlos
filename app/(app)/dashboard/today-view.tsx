@@ -27,7 +27,10 @@ import type {
   DayOption,
   PendingItem,
 } from "./day-objectives";
+import type { GymDay } from "./gym-day";
+import { GymPanel, GymRowMeta, type LoadFailure } from "./gym-row";
 import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
+import { formatLoad } from "@/app/utils/workout-loads";
 import styles from "./dashboard.module.css";
 
 type SheetState =
@@ -78,6 +81,7 @@ export function TodayView({
   blocked,
   pickerRange,
   dayOptions,
+  gymDays = {},
   streaks = {},
   goals,
 }: {
@@ -88,6 +92,7 @@ export function TodayView({
   blocked: Record<string, BlockedDays>;
   pickerRange: { from: string; to: string };
   dayOptions: DayOption[];
+  gymDays?: Record<string, GymDay>;
   streaks?: Record<string, ObjectiveStreak>;
   goals?: ReactNode;
 }) {
@@ -186,6 +191,7 @@ export function TodayView({
       ),
   );
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
 
   function save(item: Pick<DayObjective, "id" | "title">, checked: boolean) {
     setFailure(null);
@@ -224,6 +230,35 @@ export function TodayView({
           ) : (
             <DaySummary done={done} total={items.length} />
           )}
+          {loadFailure && (
+            <div className={styles.toast} role="alert">
+              <svg className={styles.toastIcon} viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7.5v5.5M12 16.5v.01" />
+              </svg>
+              <div className={styles.toastBody}>
+                <p className={styles.toastTitle}>Não deu para salvar a carga</p>
+                <p className={styles.toastDetail}>
+                  {loadFailure.before
+                    ? `${loadFailure.exercise.name} voltou para ${formatLoad(loadFailure.before)}.`
+                    : `${loadFailure.exercise.name} voltou ao valor anterior.`}
+                </p>
+                <button type="button" className={styles.toastAction} onClick={loadFailure.retry}>
+                  Tentar de novo
+                </button>
+              </div>
+              <button
+                type="button"
+                className={styles.toastClose}
+                onClick={() => setLoadFailure(null)}
+                aria-label="Fechar aviso"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+          )}
           {failure && (
             <CheckErrorToast
               failure={failure}
@@ -250,8 +285,10 @@ export function TodayView({
           {day === today ? "Para hoje" : future ? "Programados" : "Neste dia"}
         </h2>
         <ul className={styles.list}>
-          {items.map((item) => (
-            <li key={item.id} className={styles.itemRow}>
+          {items.map((item) => {
+            const gym = item.activity_type === "gym" ? gymDays[item.id] : undefined;
+            const row = (
+            <div className={styles.itemRow}>
               <button
                 type="button"
                 role="checkbox"
@@ -273,6 +310,7 @@ export function TodayView({
                     <StreakBadge count={streakOf(item)} />
                   </span>
                   <span className={styles.rowMeta}>
+                    {gym && <GymRowMeta gym={gym} />}
                     {item.addition ? (
                       <span className={styles.movedBadge}>
                         {item.replacedTitle
@@ -307,8 +345,23 @@ export function TodayView({
                   </svg>
                 </button>
               )}
-            </li>
-          ))}
+            </div>
+            );
+            return (
+              <li key={item.id}>
+                {row}
+                {gym && (
+                  <GymPanel
+                    objective={item}
+                    gym={gym}
+                    day={day}
+                    today={today}
+                    onLoadFailure={setLoadFailure}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
         <AddObjectiveButton day={day} today={today} options={dayOptions} />
       </section>

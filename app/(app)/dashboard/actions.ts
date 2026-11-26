@@ -9,6 +9,9 @@ import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { findSameActivityOnDay, isWithinWorkoutSwapWindow } from "@/app/utils/workouts";
 import { getDayChanges, getDayConflict, getUserTimezone } from "./day-objectives";
+import { getGymDays } from "./gym-day";
+import { hasLoadErrors, parseLoad, validateLoad } from "@/app/utils/workout-loads";
+import type { Reschedule } from "@/app/utils/occurrences";
 
 export type CheckFailure = "out-of-window" | "not-scheduled" | "failed";
 export type SetCheckResult = { ok: true } | { ok: false; reason: CheckFailure };
@@ -69,6 +72,12 @@ export async function setCheck(
     if (error && error.code !== UNIQUE_VIOLATION) {
       console.error("Failed to insert check", error);
       return { ok: false, reason: "failed" };
+    }
+    if (objective.activity_type === "gym") {
+      // RN-29: the session keeps which workout was done even if the schedule changes later.
+      await ensureSession(supabase, objectiveId, day, getOccurrence(objective, day, changes).reschedule).catch(
+        (sessionError: unknown) => console.error("Failed to record the session", sessionError),
+      );
     }
   } else {
     const { error } = await supabase
@@ -429,5 +438,59 @@ export async function setDayWorkout(
   }
 
   revalidate(objectiveId);
+  return { ok: true };
+}
+
+async function ensureSession(
+  supabase: Client,
+  objectiveId: string,
+  day: string,
+  reschedule: Reschedule | null,
+) {
+  const { data: existing, error } = await supabase
+    .from("activity_sessions")
+    .select("id")
+    .eq("objective_id", objectiveId)
+    .eq("day", day)
+    .maybeSingle();
+  if (error) throw error;
+  if (existing) return;
+  const gym = await getGymDays(supabase, [{ id: objectiveId, reschedule }], day);
+  const { error: insertError } = await supabase.from("activity_sessions").insert({
+    objective_id: objectiveId,
+    day,
+    activity_type: "gym",
+    workout_id: gym[objectiveId]?.workout?.workoutId ?? null,
+  });
+  if (insertError && insertError.code !== UNIQUE_VIOLATION) throw insertError;
+}
+
+export type SaveLoadResult = { ok: true } | { ok: false; reason: "out-of-window" | "invalid" | "failed" };
+
+/** RN-27: adjusting on Hoje writes the version of the selected day (today or the backfill window). */
+export async function saveDayLoad(
+  exerciseId: string,
+  day: string,
+  load: unknown,
+): Promise<SaveLoadResult> {
+  const user = await requireUser();
+  const supabase = createClient(await cookies());
+  const today = getUserToday(await getUserTimezone(supabase, user.id));
+  if (!isDay(day) || !isWithinBackfill(day, today)) return { ok: false, reason: "out-of-window" };
+  const values = parseLoad(load);
+  if (hasLoadErrors(validateLoad(values))) return { ok: false, reason: "invalid" };
+
+  const { error } = await supabase.rpc("save_workout_load", {
+    workout_exercise_id: exerciseId,
+    day,
+    sets: values.sets,
+    reps: values.reps,
+    load_kg: values.loadKg ?? undefined,
+  });
+  if (error) {
+    console.error("Failed to save the day load", error);
+    return { ok: false, reason: "failed" };
+  }
+  revalidatePath("/dashboard");
   return { ok: true };
 }

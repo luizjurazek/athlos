@@ -47,6 +47,8 @@ export type DayOption = Pick<Objective, "id" | "title" | "color" | "icon" | "act
   conflict: DayConflict;
   /** RN-33: objectives of the same activity type already on the day. */
   sameActivity: { id: string; title: string }[];
+  /** RN-35: workouts a gym option brings to the day; null = no plan, undefined = not gym. */
+  workouts?: { id: string; label: string; description: string | null }[] | null;
 };
 
 /** The option's conflict in a sheet; in a swap the objective leaving the day does not count (RN-33). */

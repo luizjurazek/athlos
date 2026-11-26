@@ -31,6 +31,7 @@ import {
   type StripDay,
 } from "./day-objectives";
 import { AddObjectiveButton } from "./day-change-sheets";
+import { getGymDays, getGymOptionWorkouts, type GymDay, type GymWorkout } from "./gym-day";
 import { DayHeading } from "./day-heading";
 import { StripDayLink, StripScroller } from "./strip-scroller";
 import { GoalsSummary } from "./goals-summary";
@@ -133,6 +134,23 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     );
   }
 
+  // Gym details are extra: if they fail, the day renders as plain objectives.
+  const gymScheduled = data.scheduled.filter((item) => item.activity_type === "gym");
+  const gymOptionIds = data.dayOptions.filter((option) => option.activity_type === "gym").map((option) => option.id);
+  let gymDays: Record<string, GymDay> = {};
+  let optionWorkouts: Record<string, GymWorkout[] | null> = {};
+  try {
+    [gymDays, optionWorkouts] = await Promise.all([
+      getGymDays(supabase, gymScheduled, day),
+      getGymOptionWorkouts(supabase, gymOptionIds, day),
+    ]);
+  } catch (error) {
+    console.error("Failed to load the gym day", error);
+  }
+  const dayOptions = data.dayOptions.map((option) =>
+    option.activity_type === "gym" ? { ...option, workouts: optionWorkouts[option.id] ?? null } : option,
+  );
+
   const header = (
     <Header
       heading={heading}
@@ -179,7 +197,7 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
                 Ver objetivos
               </Link>
             </EmptyCard>
-            <AddObjectiveButton day={day} today={today} options={data.dayOptions} />
+            <AddObjectiveButton day={day} today={today} options={dayOptions} />
           </div>
           <aside className={styles.aside}>
             {day === today && data.pending.length > 0 && (
@@ -217,7 +235,8 @@ async function TodayContent({ searchParams }: Pick<PageProps<"/dashboard">, "sea
           pending={day === today ? data.pending : []}
           blocked={data.blocked}
           pickerRange={data.pickerRange}
-          dayOptions={data.dayOptions}
+          dayOptions={dayOptions}
+          gymDays={gymDays}
           streaks={streaks}
           goals={goals}
         />

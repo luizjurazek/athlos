@@ -101,14 +101,22 @@ export function PickObjectiveSheet(props: PickProps) {
   const { day, today, options, onClose } = props;
   const { pending, error, run } = useSheetAction(onClose);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [workoutId, setWorkoutId] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const selected = options.find((option) => option.id === selectedId) ?? null;
   const replacedId = props.mode === "replace" ? props.replaced.id : null;
   const canMarkDone = day <= today;
+  // RN-35: a gym objective only enters the day with its workout chosen here.
+  const gymWorkouts = selected?.workouts;
+  const chosenWorkout = gymWorkouts?.find((workout) => workout.id === workoutId) ?? null;
+  const ready = Boolean(selected) && (gymWorkouts === undefined || Boolean(chosenWorkout));
+  const selectedName = selected
+    ? `${selected.title}${chosenWorkout ? ` (Treino ${chosenWorkout.label})` : ""}`
+    : "";
 
   function submit(markDone: boolean) {
-    if (!selected) return;
-    run(() => addObjectiveToDay(selected.id, day, replacedId, markDone));
+    if (!selected || !ready) return;
+    run(() => addObjectiveToDay(selected.id, day, replacedId, markDone, chosenWorkout?.id ?? null));
   }
 
   const info =
@@ -133,7 +141,9 @@ export function PickObjectiveSheet(props: PickProps) {
       <ul className={styles.list}>
         {options.map((option) => {
           const conflict = getOptionConflict(option, replacedId);
-          const optionReason = conflict && conflictReason(conflict, option.title);
+          const optionReason =
+            (conflict && conflictReason(conflict, option.title)) ||
+            (option.workouts === null ? `${option.title} sem ficha. Crie uma ficha para escolher o treino.` : null);
           return (
             <li key={option.id}>
               <button
@@ -149,6 +159,7 @@ export function PickObjectiveSheet(props: PickProps) {
                   }
                   setReason(null);
                   setSelectedId(option.id);
+                  setWorkoutId(null);
                 }}
               >
                 <ObjectiveBadge color={option.color} icon={option.icon} />
@@ -163,15 +174,38 @@ export function PickObjectiveSheet(props: PickProps) {
         })}
       </ul>
 
+      {gymWorkouts && (
+        <div className={styles.workoutChoice}>
+          <p className={styles.workoutChoiceTitle}>Qual treino?</p>
+          <div className={styles.workoutChips} role="group" aria-label="Treino do dia">
+            {gymWorkouts.map((workout) => (
+              <button
+                key={workout.id}
+                type="button"
+                className={styles.workoutChip}
+                aria-pressed={workoutId === workout.id}
+                aria-label={`Treino ${workout.label}${workout.description ? `, ${workout.description}` : ""}`}
+                onClick={() => setWorkoutId(workout.id)}
+              >
+                <span className={styles.workoutChipLetter} aria-hidden="true">
+                  {workout.label}
+                </span>
+                <span aria-hidden="true">{workout.description ?? `Treino ${workout.label}`}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className={styles.sheetInfo} aria-live="polite">
         {info}
       </p>
       <SheetError error={error} />
 
       <div className={styles.sheetActions}>
-        {!selected ? (
+        {!selected || !ready ? (
           <button type="button" className={styles.primaryButton} disabled>
-            Escolha um objetivo
+            {selected ? "Escolha o treino" : "Escolha um objetivo"}
           </button>
         ) : canMarkDone ? (
           <>
@@ -189,7 +223,7 @@ export function PickObjectiveSheet(props: PickProps) {
               disabled={pending}
               onClick={() => submit(true)}
             >
-              {pending ? "Salvando..." : `${verb} ${selected.title} e marcar feito`}
+              {pending ? "Salvando..." : `${verb} ${selectedName} e marcar feito`}
             </button>
           </>
         ) : (
@@ -199,7 +233,7 @@ export function PickObjectiveSheet(props: PickProps) {
             disabled={pending}
             onClick={() => submit(false)}
           >
-            {pending ? "Salvando..." : `${verb} ${selected.title}`}
+            {pending ? "Salvando..." : `${verb} ${selectedName}`}
           </button>
         )}
       </div>
