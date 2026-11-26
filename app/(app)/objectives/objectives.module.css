@@ -325,6 +325,14 @@
   color: var(--color-on-primary);
 }
 
+/* RN-33: a day taken by another gym objective stays visible but cannot be picked. */
+.day:has(input:disabled) {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .swatches {
   display: flex;
   flex-wrap: wrap;

@@ -8,8 +8,8 @@ import styles from "./objectives.module.css";
 
 type ObjectiveActionsPanelProps = {
   archived: boolean;
-  archiveAction: () => Promise<void>;
-  unarchiveAction: () => Promise<void>;
+  archiveAction: (prev: FormState) => Promise<FormState>;
+  unarchiveAction: (prev: FormState) => Promise<FormState>;
   deleteAction: (prev: FormState) => Promise<FormState>;
 };
 
@@ -20,13 +20,18 @@ export function ObjectiveActionsPanel({
   deleteAction,
 }: ObjectiveActionsPanelProps) {
   const [deleteState, deleteFormAction, deleting] = useActionState(deleteAction, undefined);
+  const [archiveState, archiveFormAction] = useActionState(
+    archived ? unarchiveAction : archiveAction,
+    undefined,
+  );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
     <section className={styles.section}>
+      <Feedback state={archiveState} />
       <Feedback state={deleteState} />
       <div className={`${styles.list} ${styles.actionsList}`}>
-        <form action={archived ? unarchiveAction : archiveAction}>
+        <form action={archiveFormAction}>
           <SubmitButton
             className={styles.rowButton}
             pendingLabel={archived ? "Desarquivando..." : "Arquivando..."}

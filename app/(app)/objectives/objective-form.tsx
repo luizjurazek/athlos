@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   EVERY_DAY,
+  formatWeekdays,
   normalizeWeekdays,
   WEEKDAYS,
   WORKDAYS,
@@ -15,7 +16,8 @@ import {
 } from "@/app/utils/weekdays";
 import type { LinkableGoal } from "../goals/data";
 import type { FormState } from "./actions";
-import type { AlternativeOption } from "./data";
+import g from "../goals/goals.module.css";
+import type { AlternativeOption, GymFormContext } from "./data";
 import { ObjectiveIcon } from "./objective-icon";
 import {
   OBJECTIVE_COLORS,
@@ -29,8 +31,9 @@ type ObjectiveFormProps = {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   objective?: Pick<
     Objective,
-    "title" | "color" | "icon" | "weekdays" | "reschedulable"
+    "title" | "color" | "icon" | "weekdays" | "reschedulable" | "activity_type"
   >;
+  gym: GymFormContext;
   goals: LinkableGoal[];
   linkedGoalIds?: string[];
   alternatives: AlternativeOption[];
@@ -38,7 +41,7 @@ type ObjectiveFormProps = {
   submitLabel: string;
 };
 
-export function Feedback({ state }: { state: FormState }) {
+export function Feedback({ state }: { state: FormState | { error?: string } }) {
   if (!state?.error) return null;
   return (
     <p className={styles.error} role="alert">
@@ -58,6 +61,7 @@ export function ObjectiveForm({
   linkedGoalIds = [],
   alternatives,
   alternativeIds: initialAlternativeIds = [],
+  gym,
   submitLabel,
 }: ObjectiveFormProps) {
   const [state, formAction, pending] = useActionState(action, undefined);
@@ -72,6 +76,17 @@ export function ObjectiveForm({
   );
   const [goalIds, setGoalIds] = useState(linkedGoalIds);
   const [alternativeIds, setAlternativeIds] = useState(initialAlternativeIds);
+  const [activityType, setActivityType] = useState<"" | "gym">(objective?.activity_type ?? "");
+  const [planId, setPlanId] = useState(gym.linkedPlan?.id ?? "");
+  const isGym = activityType === "gym";
+  const takenTitles = new Map<number, string>(
+    isGym ? gym.takenDays.map((taken) => [taken.weekday, taken.title]) : [],
+  );
+  const conflictDays = weekdays.filter((day) => takenTitles.has(day));
+  const weekdaysError =
+    conflictDays.length > 0
+      ? `${formatWeekdays(conflictDays)} já ${conflictDays.length === 1 ? "é" : "são"} de outro objetivo de academia. Dois objetivos de academia não podem cair no mesmo dia.`
+      : state?.errors?.weekdays;
 
   function toggleGoal(id: string) {
     setGoalIds((current) =>
@@ -104,7 +119,13 @@ export function ObjectiveForm({
   const presets = [
     { label: "Todos os dias", days: EVERY_DAY },
     { label: "Dias úteis", days: WORKDAYS },
-  ];
+  ].map((preset) => ({ ...preset, days: preset.days.filter((day) => !takenTitles.has(day)) }));
+  const takenSummary = [...new Set(gym.takenDays.map((taken) => taken.title))]
+    .map((title) => {
+      const days = gym.takenDays.filter((taken) => taken.title === title).map((taken) => taken.weekday);
+      return `${formatWeekdays(days)}: ${title}`;
+    })
+    .join(" · ");
 
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
@@ -127,6 +148,45 @@ export function ObjectiveForm({
             />
           </div>
           <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Tipo</legend>
+            <input type="hidden" name="activity_type" value={activityType} />
+            <div className={g.tabs} role="group" aria-label="Tipo do objetivo">
+              <button
+                type="button"
+                className={g.tab}
+                aria-pressed={!isGym}
+                disabled={Boolean(gym.linkedPlan) && isGym}
+                onClick={() => setActivityType("")}
+              >
+                Comum
+              </button>
+              <button
+                type="button"
+                className={g.tab}
+                aria-pressed={isGym}
+                onClick={() => {
+                  setActivityType("gym");
+                  const taken = new Set(gym.takenDays.map((item) => item.weekday));
+                  setWeekdays((current) => {
+                    const free = current.filter((day) => !taken.has(day));
+                    return free.length > 0 ? free : current;
+                  });
+                }}
+              >
+                Academia
+              </button>
+            </div>
+            {state?.errors?.activityType ? (
+              <p className={g.fieldError}>{state.errors.activityType}</p>
+            ) : (
+              <p className={styles.hint}>
+                {gym.linkedPlan && isGym
+                  ? `A ${gym.linkedPlan.title} está vinculada. Encerre ou desvincule a ficha para mudar para Comum.`
+                  : "Objetivos de academia podem ter ficha, agenda de treinos e o treino do dia no Hoje."}
+              </p>
+            )}
+          </fieldset>
+          <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Dias da semana</legend>
             <div className={styles.presets}>
               {presets.map((preset) => (
@@ -142,22 +202,72 @@ export function ObjectiveForm({
               ))}
             </div>
             <div className={styles.days}>
-              {WEEKDAYS.map((day) => (
-                <label key={day.value} className={styles.day} title={day.long}>
-                  <input
-                    className={styles.visuallyHidden}
-                    type="checkbox"
-                    name="weekdays"
-                    value={day.value}
-                    checked={weekdays.includes(day.value)}
-                    onChange={() => toggleDay(day.value)}
-                    aria-label={day.long}
-                  />
-                  <span aria-hidden="true">{day.short}</span>
-                </label>
-              ))}
+              {WEEKDAYS.map((day) => {
+                const takenBy = takenTitles.get(day.value);
+                const blocked = Boolean(takenBy) && !weekdays.includes(day.value);
+                return (
+                  <label
+                    key={day.value}
+                    className={styles.day}
+                    title={takenBy ? `${day.long}: Academia já está neste dia (${takenBy})` : day.long}
+                  >
+                    <input
+                      className={styles.visuallyHidden}
+                      type="checkbox"
+                      name="weekdays"
+                      value={day.value}
+                      checked={weekdays.includes(day.value)}
+                      disabled={blocked}
+                      onChange={() => toggleDay(day.value)}
+                      aria-label={takenBy ? `${day.long}, Academia já está neste dia` : day.long}
+                    />
+                    <span aria-hidden="true">{day.short}</span>
+                  </label>
+                );
+              })}
             </div>
+            {weekdaysError ? (
+              <p className={g.fieldError}>{weekdaysError}</p>
+            ) : (
+              isGym &&
+              takenSummary && (
+                <p className={styles.hint}>
+                  Já usados por outro objetivo de academia ({takenSummary}). Dois objetivos de academia não
+                  podem cair no mesmo dia.
+                </p>
+              )
+            )}
           </fieldset>
+          {isGym && (
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>Ficha (opcional)</legend>
+              <div className={styles.group}>
+                <select
+                  className={styles.input}
+                  name="plan_id"
+                  aria-label="Ficha"
+                  value={planId}
+                  onChange={(event) => setPlanId(event.target.value)}
+                >
+                  <option value="">Nenhuma</option>
+                  {gym.plans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {state?.errors?.plan ? (
+                <p className={g.fieldError}>{state.errors.plan}</p>
+              ) : (
+                <p className={styles.hint}>
+                  {gym.plans.length === 0
+                    ? "Nenhuma ficha livre. Sem ficha, o objetivo funciona normalmente: só não mostra o treino no Hoje."
+                    : "Mostra as fichas livres. Sem ficha, o objetivo funciona normalmente: só não mostra o treino no Hoje."}
+                </p>
+              )}
+            </fieldset>
+          )}
           <div className={styles.fieldset}>
             <label className={`${styles.group} ${styles.switchRow}`}>
               <span>Pode mudar de dia</span>
@@ -288,7 +398,7 @@ export function ObjectiveForm({
         </div>
       </div>
 
-      <button className={styles.button} type="submit" disabled={pending}>
+      <button className={styles.button} type="submit" disabled={pending || conflictDays.length > 0}>
         {pending ? "Salvando..." : submitLabel}
       </button>
     </form>
