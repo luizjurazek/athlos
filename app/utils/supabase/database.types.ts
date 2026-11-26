@@ -209,7 +209,7 @@ export type Database = {
           id: string;
           position: number;
           target_count: number;
-          title: string;
+          title: string | null;
           user_id: string;
         };
         Insert: {
@@ -220,7 +220,7 @@ export type Database = {
           id?: string;
           position: number;
           target_count: number;
-          title: string;
+          title?: string | null;
           user_id?: string;
         };
         Update: {
@@ -231,7 +231,7 @@ export type Database = {
           id?: string;
           position?: number;
           target_count?: number;
-          title?: string;
+          title?: string | null;
           user_id?: string;
         };
         Relationships: [
