@@ -554,3 +554,56 @@ button.exerciseRow:focus-visible {
     background: var(--color-surface-muted);
   }
 }
+
+.scheduleOff {
+  color: var(--color-text-muted);
+}
+
+.scheduleOff .scheduleValue {
+  font-size: var(--text-footnote);
+}
+
+.scheduleButton {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scheduleButton .scheduleValue {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.scheduleButton:active {
+  background: var(--color-surface-muted);
+}
+
+.scheduleButton:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .scheduleButton:hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-strong);
+}
+
+.textLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

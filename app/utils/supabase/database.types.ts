@@ -766,6 +766,7 @@ export type Database = {
           mark_done?: boolean;
           objective_id: string;
           replaced_objective_id?: string;
+          workout_id?: string;
         };
         Returns: string;
       };

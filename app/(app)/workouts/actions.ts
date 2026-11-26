@@ -236,3 +236,48 @@ export async function endPlan(planId: string): Promise<PlanFormState> {
   revalidateWorkouts(planId);
   redirect(`/workouts/${planId}`);
 }
+
+export type ScheduleResult = { ok: true } | { ok: false; error: string };
+
+/** RN-28: replaces the plan's schedule; only the linked objective's weekdays are accepted. */
+export async function savePlanSchedule(
+  planId: string,
+  entries: { weekday: number; workoutId: string | null }[],
+): Promise<ScheduleResult> {
+  const { supabase } = await loadContext();
+  const plan = await getPlan(supabase, planId).catch(() => null);
+  if (!plan) return { ok: false, error: "Ficha não encontrada." };
+  if (plan.endedOn) return { ok: false, error: "Fichas encerradas não podem ser editadas." };
+  if (!plan.objectiveId || !plan.objectiveWeekdays) {
+    return { ok: false, error: "Agenda precisa de um objetivo. Vincule a ficha antes." };
+  }
+  const weekdays = plan.objectiveWeekdays;
+  const workoutIds = new Set(plan.workouts.map((workout) => workout.id));
+  if (!Array.isArray(entries)) return { ok: false, error: SAVE_ERROR };
+  for (const entry of entries) {
+    if (!weekdays.includes(entry.weekday)) {
+      return { ok: false, error: "Esse dia não está nos dias do objetivo." };
+    }
+    if (entry.workoutId !== null && !workoutIds.has(entry.workoutId)) {
+      return { ok: false, error: "Esse treino não é desta ficha. Atualize a página." };
+    }
+  }
+
+  const rows = entries.flatMap((entry) =>
+    entry.workoutId ? [{ plan_id: planId, weekday: entry.weekday, workout_id: entry.workoutId }] : [],
+  );
+  const cleared = entries.filter((entry) => !entry.workoutId).map((entry) => entry.weekday);
+  const [upserted, deleted] = await Promise.all([
+    rows.length > 0 ? supabase.from("workout_schedule").upsert(rows, { onConflict: "plan_id,weekday" }) : null,
+    cleared.length > 0
+      ? supabase.from("workout_schedule").delete().eq("plan_id", planId).in("weekday", cleared)
+      : null,
+  ]);
+  if (upserted?.error || deleted?.error) {
+    console.error("Failed to save the schedule", upserted?.error ?? deleted?.error);
+    return { ok: false, error: SAVE_ERROR };
+  }
+
+  revalidateWorkouts(planId);
+  return { ok: true };
+}

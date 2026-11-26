@@ -113,6 +113,8 @@ function MovePicker({
     if (blocked.occurrence.includes(day)) return `Já tem ${objective.title} neste dia.`;
     if (blocked.replaced.includes(day)) return `${objective.title} foi trocado neste dia.`;
     if (blocked.checked.includes(day)) return "Já tem check neste dia.";
+    const sameActivity = blocked.sameActivity.find((item) => item.day === day);
+    if (sameActivity) return `Já tem ${sameActivity.title} (Academia) neste dia.`;
     return null;
   }
 

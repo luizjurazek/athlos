@@ -7,12 +7,15 @@ import { getUserToday, isDay } from "@/app/utils/dates";
 import { getOccurrence, isDueOn } from "@/app/utils/occurrences";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
+import { findSameActivityOnDay, isWithinWorkoutSwapWindow } from "@/app/utils/workouts";
 import { getDayChanges, getDayConflict, getUserTimezone } from "./day-objectives";
 
 export type CheckFailure = "out-of-window" | "not-scheduled" | "failed";
 export type SetCheckResult = { ok: true } | { ok: false; reason: CheckFailure };
 export type RescheduleResult = { ok: true } | { ok: false; error: string };
 export type AdditionResult = RescheduleResult;
+export type DayWorkoutFailure = "out-of-window" | "not-scheduled" | "invalid-workout" | "failed";
+export type SetDayWorkoutResult = { ok: true } | { ok: false; reason: DayWorkoutFailure };
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -23,7 +26,7 @@ async function loadContext(objectiveId: string) {
     getUserTimezone(supabase, user.id),
     supabase
       .from("objectives")
-      .select("id, title, weekdays, archived_at, reschedulable, created_at")
+      .select("id, title, weekdays, archived_at, reschedulable, created_at, activity_type")
       .eq("id", objectiveId)
       .maybeSingle(),
   ]);
@@ -90,7 +93,7 @@ export async function rescheduleObjective(
   toDay: string,
   markDone: boolean,
 ): Promise<RescheduleResult> {
-  const { supabase, today, objective } = await loadContext(objectiveId);
+  const { supabase, timezone, today, objective } = await loadContext(objectiveId);
   if (!objective || objective.archived_at || !objective.reschedulable) {
     return { ok: false, error: "Esse objetivo não pode mudar de dia." };
   }
@@ -134,6 +137,9 @@ export async function rescheduleObjective(
   if (checkedDays.has(toDay)) {
     return { ok: false, error: "Esse dia já tem check." };
   }
+  const sameActivity = await findSameActivityConflict(supabase, timezone, objective, toDay).catch(() => undefined);
+  if (sameActivity === undefined) return { ok: false, error: "Não deu para mudar o dia. Tente de novo." };
+  if (sameActivity) return { ok: false, error: `Já tem ${sameActivity} (Academia) neste dia.` };
 
   const { error } = await supabase.rpc("reschedule_objective", {
     objective_id: objectiveId,
@@ -184,6 +190,7 @@ export async function undoReschedule(rescheduleId: string): Promise<RescheduleRe
 }
 
 const CONFLICT_ERRORS = {
+  "same-activity": () => "Já tem Academia neste dia.",
   due: (title: string) => `Já tem ${title} neste dia.`,
   checked: (title: string) => `${title} já tem check neste dia.`,
   moved: (title: string) => `${title} mudou de dia. Desfaça a mudança antes.`,
@@ -199,6 +206,7 @@ export async function addObjectiveToDay(
   day: string,
   replacedObjectiveId: string | null,
   markDone: boolean,
+  workoutId: string | null = null,
 ): Promise<AdditionResult> {
   const { supabase, timezone, today, objective } = await loadContext(objectiveId);
   if (!objective || objective.archived_at) {
@@ -251,6 +259,27 @@ export async function addObjectiveToDay(
 
   const conflict = getDayConflict(objective, day, changes, checkedIds.has(objectiveId));
   if (conflict) return { ok: false, error: CONFLICT_ERRORS[conflict](objective.title) };
+  const sameActivity = await findSameActivityConflict(
+    supabase,
+    timezone,
+    objective,
+    day,
+    replacedObjectiveId,
+  ).catch(() => undefined);
+  if (sameActivity === undefined) return { ok: false, error: "Não deu para salvar. Tente de novo." };
+  if (sameActivity) return { ok: false, error: CONFLICT_ERRORS["same-activity"]() };
+
+  // RN-35: a gym extra or swap is only saved with the workout of the day.
+  if (objective.activity_type === "gym") {
+    const plan = await getPlanCovering(supabase, objectiveId, day).catch(() => undefined);
+    if (plan === undefined) return { ok: false, error: "Não deu para salvar. Tente de novo." };
+    if (!plan) return { ok: false, error: `${objective.title} não tem ficha ativa.` };
+    if (!workoutId || !plan.workoutIds.includes(workoutId)) {
+      return { ok: false, error: "Escolha o treino do dia." };
+    }
+  } else if (workoutId) {
+    return { ok: false, error: "Esse objetivo não tem treino." };
+  }
 
   if (replacedObjectiveId) {
     const replaced = replacedResult?.data;
@@ -279,6 +308,7 @@ export async function addObjectiveToDay(
     day,
     replaced_objective_id: replacedObjectiveId ?? undefined,
     mark_done: markDone,
+    workout_id: workoutId ?? undefined,
   });
   if (error) {
     console.error("Failed to add objective to day", error);
@@ -319,5 +349,85 @@ export async function undoObjectiveAddition(additionId: string): Promise<Additio
 
   revalidate(addition.objective_id);
   if (addition.replaced_objective_id) revalidatePath(`/objectives/${addition.replaced_objective_id}`);
+  return { ok: true };
+}
+
+type Client = ReturnType<typeof createClient>;
+
+/** RN-33: title of another objective of the same activity type already on the day, or null. */
+async function findSameActivityConflict(
+  supabase: Client,
+  timezone: string,
+  objective: { id: string; activity_type: string | null },
+  day: string,
+  ignoreId: string | null = null,
+): Promise<string | null> {
+  if (!objective.activity_type) return null;
+  const [others, changes] = await Promise.all([
+    supabase
+      .from("objectives")
+      .select("id, title, weekdays, activity_type, created_at")
+      .eq("activity_type", "gym")
+      .is("archived_at", null)
+      .neq("id", objective.id),
+    getDayChanges(supabase, day, day),
+  ]);
+  if (others.error) throw others.error;
+  const withCreated = others.data.map((other) => ({
+    ...other,
+    createdDay: getUserToday(timezone, new Date(other.created_at)),
+  }));
+  return findSameActivityOnDay(objective, day, withCreated, changes, ignoreId)?.title ?? null;
+}
+
+/** The plan linked to the objective that covers the day (the active one, or an older one for past days). */
+async function getPlanCovering(supabase: Client, objectiveId: string, day: string) {
+  const { data, error } = await supabase
+    .from("workout_plans")
+    .select("id, started_on, ended_on, workouts ( id )")
+    .eq("objective_id", objectiveId)
+    .lte("started_on", day)
+    .or(`ended_on.is.null,ended_on.gte.${day}`)
+    .order("started_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data && { id: data.id, workoutIds: data.workouts.map((workout) => workout.id) };
+}
+
+/**
+ * RN-28: sets the workout of one day of a gym objective, whatever defined it before (schedule,
+ * an earlier choice, an extra or a day already done). The check is left as it is.
+ */
+export async function setDayWorkout(
+  objectiveId: string,
+  day: string,
+  workoutId: string,
+): Promise<SetDayWorkoutResult> {
+  const { supabase, today, objective } = await loadContext(objectiveId);
+  if (!isDay(day) || !isWithinWorkoutSwapWindow(day, today)) return { ok: false, reason: "out-of-window" };
+  if (!objective || objective.archived_at || objective.activity_type !== "gym") {
+    return { ok: false, reason: "not-scheduled" };
+  }
+  const changes = await getDayChanges(supabase, day, day, objectiveId).catch(() => null);
+  if (!changes) return { ok: false, reason: "failed" };
+  if (!getOccurrence(objective, day, changes).due) return { ok: false, reason: "not-scheduled" };
+
+  const plan = await getPlanCovering(supabase, objectiveId, day).catch(() => undefined);
+  if (plan === undefined) return { ok: false, reason: "failed" };
+  if (!plan || !plan.workoutIds.includes(workoutId)) return { ok: false, reason: "invalid-workout" };
+
+  const { error } = await supabase
+    .from("activity_sessions")
+    .upsert(
+      { objective_id: objectiveId, day, activity_type: "gym", workout_id: workoutId },
+      { onConflict: "objective_id,day" },
+    );
+  if (error) {
+    console.error("Failed to set the day workout", error);
+    return { ok: false, reason: "failed" };
+  }
+
+  revalidate(objectiveId);
   return { ok: true };
 }

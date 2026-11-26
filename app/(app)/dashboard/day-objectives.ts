@@ -8,6 +8,7 @@ import {
   type Reschedule,
 } from "@/app/utils/occurrences";
 import type { createClient } from "@/app/utils/supabase/server";
+import { findSameActivityOnDay } from "@/app/utils/workouts";
 import type { Objective } from "../objectives/options";
 
 type Client = ReturnType<typeof createClient>;
@@ -16,7 +17,7 @@ export const STRIP_DAYS_AHEAD = 7;
 
 export type DayObjective = Pick<
   Objective,
-  "id" | "title" | "color" | "icon" | "weekdays" | "reschedulable"
+  "id" | "title" | "color" | "icon" | "weekdays" | "reschedulable" | "activity_type"
 > & {
   checked: boolean;
   reschedule: Reschedule | null;
@@ -27,18 +28,32 @@ export type DayObjective = Pick<
 };
 
 /** Days the objective cannot receive a reschedule on (RN-14, RN-24), within the picker range. */
-export type BlockedDays = { occurrence: string[]; checked: string[]; replaced: string[] };
+export type BlockedDays = {
+  occurrence: string[];
+  checked: string[];
+  replaced: string[];
+  /** RN-33: days another objective of the same activity type already occurs on. */
+  sameActivity: { day: string; title: string }[];
+};
 
 export type PendingItem = { objective: DayObjective; day: string };
 
 export type StripDay = { day: string; scheduled: number; done: number };
 
 /** Why an objective cannot be added to a day (RN-23, RN-24); null when it can. */
-export type DayConflict = "due" | "checked" | "moved" | "replaced" | null;
+export type DayConflict = "due" | "checked" | "moved" | "replaced" | "same-activity" | null;
 
-export type DayOption = Pick<Objective, "id" | "title" | "color" | "icon"> & {
+export type DayOption = Pick<Objective, "id" | "title" | "color" | "icon" | "activity_type"> & {
   conflict: DayConflict;
+  /** RN-33: objectives of the same activity type already on the day. */
+  sameActivity: { id: string; title: string }[];
 };
+
+/** The option's conflict in a sheet; in a swap the objective leaving the day does not count (RN-33). */
+export function getOptionConflict(option: DayOption, replacedId: string | null): DayConflict {
+  if (option.conflict) return option.conflict;
+  return option.sameActivity.some((other) => other.id !== replacedId) ? "same-activity" : null;
+}
 
 export type LeftRoutine =
   | { kind: "moved"; title: string; toDay: string }
@@ -175,6 +190,7 @@ export async function getDayData(
           icon: objective.icon,
           weekdays: objective.weekdays,
           reschedulable: objective.reschedulable,
+          activity_type: objective.activity_type,
           checked: checked.has(`${objective.id}:${target}`),
           reschedule: occurrence.reschedule,
           addition: occurrence.addition,
@@ -205,12 +221,16 @@ export async function getDayData(
 
   const blocked: Record<string, BlockedDays> = {};
   for (const objective of withCreated.filter((item) => item.reschedulable)) {
-    const days: BlockedDays = { occurrence: [], checked: [], replaced: [] };
+    const days: BlockedDays = { occurrence: [], checked: [], replaced: [], sameActivity: [] };
     for (let current = pickerRange.from; current <= pickerRange.to; current = addDays(current, 1)) {
       const occurrence = getOccurrence(objective, current, changes);
       if (occurrence.due) days.occurrence.push(current);
       else if (occurrence.replacedBy) days.replaced.push(current);
       else if (checked.has(`${objective.id}:${current}`)) days.checked.push(current);
+      else {
+        const other = findSameActivityOnDay(objective, current, withCreated, changes);
+        if (other) days.sameActivity.push({ day: current, title: other.title });
+      }
     }
     blocked[objective.id] = days;
   }
@@ -233,7 +253,18 @@ export async function getDayData(
     title: objective.title,
     color: objective.color,
     icon: objective.icon,
+    activity_type: objective.activity_type,
     conflict: getDayConflict(objective, day, changes, checked.has(`${objective.id}:${day}`)),
+    sameActivity: objective.activity_type
+      ? withCreated
+          .filter(
+            (other) =>
+              other.id !== objective.id &&
+              other.activity_type === objective.activity_type &&
+              getOccurrence(other, day, changes).due,
+          )
+          .map((other) => ({ id: other.id, title: other.title }))
+      : [],
   }));
 
   return {

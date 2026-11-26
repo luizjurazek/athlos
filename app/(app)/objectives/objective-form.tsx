@@ -83,6 +83,7 @@ export function ObjectiveForm({
     isGym ? gym.takenDays.map((taken) => [taken.weekday, taken.title]) : [],
   );
   const conflictDays = weekdays.filter((day) => takenTitles.has(day));
+  const droppedScheduleDays = normalizeWeekdays(gym.scheduledWeekdays).filter((day) => !weekdays.includes(day));
   const weekdaysError =
     conflictDays.length > 0
       ? `${formatWeekdays(conflictDays)} já ${conflictDays.length === 1 ? "é" : "são"} de outro objetivo de academia. Dois objetivos de academia não podem cair no mesmo dia.`
@@ -226,6 +227,11 @@ export function ObjectiveForm({
                 );
               })}
             </div>
+            {isGym && gym.linkedPlan && droppedScheduleDays.length > 0 && (
+              <p className={g.fieldHint} role="status">
+                Ao salvar, a agenda da {gym.linkedPlan.title} perde {formatWeekdays(droppedScheduleDays).toLowerCase()}.
+              </p>
+            )}
             {weekdaysError ? (
               <p className={g.fieldError}>{weekdaysError}</p>
             ) : (

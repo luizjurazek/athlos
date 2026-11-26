@@ -121,7 +121,14 @@ function ScheduleSection({ plan }: { plan: PlanDetail }) {
   const days = WEEKDAYS.filter((day) => plan.objectiveWeekdays?.includes(day.value));
   return (
     <section className={ui.section}>
-      <h2 className={ui.sectionTitle}>Agenda · dias de {plan.objectiveTitle}</h2>
+      <div className={styles.sectionHeader}>
+        <h2 className={ui.sectionTitle}>Agenda · dias de {plan.objectiveTitle}</h2>
+        {!plan.endedOn && (
+          <Link className={styles.textLink} href={`/workouts/${plan.id}/schedule`}>
+            Editar agenda
+          </Link>
+        )}
+      </div>
       <ul className={`${ui.list} ${styles.list}`}>
         {days.map((day) => {
           const entry = plan.schedule.find((item) => item.weekday === day.value);

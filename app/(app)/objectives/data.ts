@@ -35,6 +35,8 @@ export type GymFormContext = {
   /** Free active plans plus the one linked to this objective, if any. */
   plans: { id: string; title: string }[];
   linkedPlan: { id: string; title: string } | null;
+  /** Weekdays with a workout in the linked plan's schedule (removing one deletes that row). */
+  scheduledWeekdays: number[];
 };
 
 export async function getGymFormContext(supabase: Client, objectiveId?: string): Promise<GymFormContext> {
@@ -57,7 +59,12 @@ export async function getGymFormContext(supabase: Client, objectiveId?: string):
     .filter((objective) => objective.id !== objectiveId)
     .flatMap((objective) => objective.weekdays.map((weekday) => ({ weekday, title: objective.title })));
   const linked = objectiveId ? plans.data.find((plan) => plan.objective_id === objectiveId) : undefined;
+  const schedule = linked
+    ? await supabase.from("workout_schedule").select("weekday").eq("plan_id", linked.id)
+    : null;
+  if (schedule?.error) throw schedule.error;
   return {
+    scheduledWeekdays: schedule?.data.map((row) => row.weekday) ?? [],
     takenDays,
     plans: plans.data
       .filter((plan) => plan.objective_id === null || plan.id === linked?.id)

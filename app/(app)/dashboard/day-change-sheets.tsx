@@ -5,7 +5,7 @@ import { formatDayMonth, formatShortDate } from "@/app/utils/dates";
 import type { Addition } from "@/app/utils/occurrences";
 import { ObjectiveBadge } from "../objectives/objective-badge";
 import { addObjectiveToDay, undoObjectiveAddition } from "./actions";
-import type { DayConflict, DayOption } from "./day-objectives";
+import { getOptionConflict, type DayConflict, type DayOption } from "./day-objectives";
 import { Sheet, SheetError, useSheetAction, weekdayName, type SheetObjective } from "./sheet";
 import styles from "./dashboard.module.css";
 
@@ -15,6 +15,8 @@ function describeDay(day: string) {
 
 function conflictReason(conflict: Exclude<DayConflict, null>, title: string) {
   switch (conflict) {
+    case "same-activity":
+      return "Já tem Academia neste dia.";
     case "due":
       return `Já tem ${title} neste dia.`;
     case "checked":
@@ -130,7 +132,8 @@ export function PickObjectiveSheet(props: PickProps) {
     >
       <ul className={styles.list}>
         {options.map((option) => {
-          const optionReason = option.conflict && conflictReason(option.conflict, option.title);
+          const conflict = getOptionConflict(option, replacedId);
+          const optionReason = conflict && conflictReason(conflict, option.title);
           return (
             <li key={option.id}>
               <button
