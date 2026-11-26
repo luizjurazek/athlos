@@ -92,7 +92,6 @@ export function GymPanel({
   const stored = useSyncExternalStore(subscribeToNothing, () => readExpanded(objective.id), () => false);
   const [toggled, setToggled] = useState<boolean | null>(null);
   const expanded = toggled ?? (asking || stored);
-  const [swapOpen, setSwapOpen] = useState(false);
   const [editing, setEditing] = useState<GymExercise | null>(null);
   // Full-size photos; `fromEditor` returns to the load editor instead of closing.
   const [photo, setPhoto] = useState<{ exercise: GymExercise; fromEditor: boolean } | null>(null);
@@ -231,12 +230,7 @@ export function GymPanel({
                     })}
                   </ul>
                 )}
-                <div className={styles.gymPanelFooter}>
-                  {future && <p className={styles.sheetInfo}>Dia futuro: ajuste de carga só no dia.</p>}
-                  <button type="button" className={styles.gymTextButton} onClick={() => setSwapOpen(true)}>
-                    Trocar treino
-                  </button>
-                </div>
+                {future && <p className={styles.sheetInfo}>Dia futuro: ajuste de carga só no dia.</p>}
               </>
             )
           )}
@@ -285,15 +279,6 @@ export function GymPanel({
             )}
           </div>
         </ExercisePreviewSheet>
-      )}
-      {swapOpen && workout && (
-        <SwapWorkoutSheet
-          objective={objective}
-          gym={gym}
-          current={workout}
-          day={day}
-          onClose={() => setSwapOpen(false)}
-        />
       )}
     </>
   );

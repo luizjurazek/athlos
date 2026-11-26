@@ -28,30 +28,41 @@ function conflictReason(conflict: Exclude<DayConflict, null>, title: string) {
   }
 }
 
-export type DayAction = "move" | "replace";
+export type DayAction = "move" | "replace" | "workout" | "undo";
 
-/** Shown when an occurrence has more than one secondary action (RN-12, RN-22). */
+/** Shown when an occurrence has more than one secondary action (RN-12, RN-22, RN-28). */
 export function ActionsSheet({
   objective,
   day,
   checked,
+  actions,
+  undoTitle,
   onPick,
   onClose,
 }: {
   objective: SheetObjective;
   day: string;
   checked: boolean;
+  actions: DayAction[];
+  undoTitle: string;
   onPick: (action: DayAction) => void;
   onClose: () => void;
 }) {
-  const actions: { value: DayAction; title: string; hint: string }[] = [
-    { value: "move", title: "Mudar de dia", hint: `Fazer ${objective.title} em outro dia.` },
-    {
-      value: "replace",
+  const details: Record<DayAction, { title: string; hint: string; blockedWhenChecked: boolean }> = {
+    move: { title: "Mudar de dia", hint: `Fazer ${objective.title} em outro dia.`, blockedWhenChecked: true },
+    replace: {
       title: "Trocar por outro objetivo",
       hint: `Neste dia, fazer outro no lugar de ${objective.title}.`,
+      blockedWhenChecked: true,
     },
-  ];
+    workout: {
+      title: "Trocar treino",
+      hint: checked ? "Só neste dia. O check continua marcado." : "Só neste dia; a agenda não muda.",
+      blockedWhenChecked: false,
+    },
+    undo: { title: undoTitle, hint: "Volta este dia ao que era antes.", blockedWhenChecked: false },
+  };
+  const blocked = (action: DayAction) => checked && details[action].blockedWhenChecked;
 
   return (
     <Sheet
@@ -62,18 +73,18 @@ export function ActionsSheet({
     >
       <ul className={styles.list}>
         {actions.map((action) => (
-          <li key={action.value}>
+          <li key={action}>
             <button
               type="button"
               className={styles.optionRow}
-              aria-disabled={checked || undefined}
+              aria-disabled={blocked(action) || undefined}
               onClick={() => {
-                if (!checked) onPick(action.value);
+                if (!blocked(action)) onPick(action);
               }}
             >
               <span className={styles.rowText}>
-                <span className={styles.rowTitle}>{action.title}</span>
-                <span className={styles.rowMeta}>{action.hint}</span>
+                <span className={styles.rowTitle}>{details[action].title}</span>
+                <span className={styles.rowMeta}>{details[action].hint}</span>
               </span>
               <svg className={styles.optionChevron} viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m9 5 7 7-7 7" />
@@ -82,8 +93,8 @@ export function ActionsSheet({
           </li>
         ))}
       </ul>
-      {checked && (
-        <p className={styles.sheetInfo}>Esse dia já tem check. Desmarque antes de mudar ou trocar.</p>
+      {actions.some(blocked) && (
+        <p className={styles.sheetInfo}>Esse dia já tem check. Desmarque antes de mudar de dia ou trocar de objetivo.</p>
       )}
     </Sheet>
   );

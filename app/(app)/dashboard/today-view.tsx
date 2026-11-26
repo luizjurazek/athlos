@@ -28,42 +28,45 @@ import type {
   PendingItem,
 } from "./day-objectives";
 import type { GymDay } from "./gym-day";
-import { GymPanel, GymRowMeta, type LoadFailure } from "./gym-row";
+import { GymPanel, GymRowMeta, SwapWorkoutSheet, type LoadFailure } from "./gym-row";
 import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
 import { formatLoad } from "@/app/utils/workout-loads";
 import styles from "./dashboard.module.css";
 
 type SheetState =
   | { kind: "reschedule"; data: RescheduleSheetData }
-  | { kind: "actions" | "replace"; item: DayObjective }
+  | { kind: "actions" | "replace" | "undo-addition" | "workout"; item: DayObjective }
   | null;
 
-function getActions(item: DayObjective): DayAction[] {
-  if (item.addition || item.reschedule) return [];
+/** Secondary actions of a row, in the order the ⋯ sheet lists them. */
+function getActions(item: DayObjective, gym: GymDay | undefined): DayAction[] {
   const actions: DayAction[] = [];
-  if (item.reschedulable) actions.push("move");
-  if (item.alternatives.length > 0) actions.push("replace");
+  if (item.addition || item.reschedule) actions.push("undo");
+  else {
+    if (item.reschedulable) actions.push("move");
+    if (item.alternatives.length > 0) actions.push("replace");
+  }
+  // RN-28: any workout already defined for the day can be swapped, even on a day already done.
+  if (gym?.workout) actions.push("workout");
   return actions;
 }
 
-function moreLabel(item: DayObjective) {
-  if (item.addition) {
-    return item.addition.replacedObjectiveId
-      ? `${item.title}: desfazer troca`
-      : `${item.title}: tirar deste dia`;
-  }
-  if (item.reschedule) return `${item.title}: desfazer mudança de dia`;
-  const actions = getActions(item);
-  if (actions.length > 1) return `${item.title}: mudar de dia ou trocar`;
-  return actions[0] === "move"
-    ? `${item.title}: mudar de dia`
-    : `${item.title}: trocar por outro objetivo`;
+function undoTitle(item: DayObjective) {
+  if (item.addition) return item.addition.replacedObjectiveId ? "Desfazer troca" : "Tirar deste dia";
+  return "Desfazer mudança de dia";
 }
 
-function hasMore(item: DayObjective) {
-  return (
-    Boolean(item.addition || item.reschedule) || getActions(item).length > 0
+const ACTION_LABELS: Record<Exclude<DayAction, "undo">, string> = {
+  move: "mudar de dia",
+  replace: "trocar por outro objetivo",
+  workout: "trocar treino",
+};
+
+function moreLabel(item: DayObjective, actions: DayAction[]) {
+  const labels = actions.map((action) =>
+    action === "undo" ? undoTitle(item).toLowerCase() : ACTION_LABELS[action],
   );
+  return `${item.title}: ${labels.join(", ")}`;
 }
 
 type Failure = {
@@ -113,27 +116,23 @@ export function TodayView({
     });
   }
 
-  function openActions(item: DayObjective) {
-    if (item.addition) {
-      setSheet({ kind: "actions", item });
-      return;
-    }
-    if (item.reschedule) {
+  function runAction(item: DayObjective, action: DayAction) {
+    if (action === "move") openMove(item, day);
+    else if (action === "replace") setSheet({ kind: "replace", item });
+    else if (action === "workout") setSheet({ kind: "workout", item });
+    else if (item.addition) setSheet({ kind: "undo-addition", item });
+    else if (item.reschedule) {
       setSheet({
         kind: "reschedule",
-        data: {
-          mode: "undo",
-          objective: item,
-          reschedule: item.reschedule,
-          checked: item.checked,
-        },
+        data: { mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked },
       });
-      return;
     }
-    const actions = getActions(item);
+  }
+
+  function openActions(item: DayObjective) {
+    const actions = getActions(item, gymDays[item.id]);
     if (actions.length > 1) setSheet({ kind: "actions", item });
-    else if (actions[0] === "move") openMove(item, day);
-    else setSheet({ kind: "replace", item });
+    else if (actions[0]) runAction(item, actions[0]);
   }
 
   function renderSheet() {
@@ -142,7 +141,8 @@ export function TodayView({
     if (sheet.kind === "reschedule")
       return <RescheduleSheet {...sheet.data} onClose={close} />;
     const { item } = sheet;
-    if (item.addition) {
+    const gym = gymDays[item.id];
+    if (sheet.kind === "undo-addition" && item.addition) {
       return (
         <AdditionUndoSheet
           objective={item}
@@ -153,17 +153,21 @@ export function TodayView({
         />
       );
     }
+    if (sheet.kind === "workout") {
+      const current = gym?.workouts.find((workout) => workout.id === gym.workout?.workoutId);
+      return gym && current ? (
+        <SwapWorkoutSheet objective={item} gym={gym} current={current} day={day} onClose={close} />
+      ) : null;
+    }
     if (sheet.kind === "actions") {
       return (
         <ActionsSheet
           objective={item}
           day={day}
           checked={item.checked}
-          onPick={(action) =>
-            action === "move"
-              ? openMove(item, day)
-              : setSheet({ kind: "replace", item })
-          }
+          actions={getActions(item, gym)}
+          undoTitle={undoTitle(item)}
+          onPick={(action) => runAction(item, action)}
           onClose={close}
         />
       );
@@ -287,6 +291,7 @@ export function TodayView({
         <ul className={styles.list}>
           {items.map((item) => {
             const gym = item.activity_type === "gym" ? gymDays[item.id] : undefined;
+            const actions = getActions(item, gym);
             const row = (
             <div className={styles.itemRow}>
               <button
@@ -327,15 +332,15 @@ export function TodayView({
                     ) : null}
                   </span>
                 </span>
-                {!hasMore(item) && (
+                {actions.length === 0 && (
                   <ObjectiveBadge color={item.color} icon={item.icon} />
                 )}
               </button>
-              {hasMore(item) && (
+              {actions.length > 0 && (
                 <button
                   type="button"
                   className={styles.moreButton}
-                  aria-label={moreLabel(item)}
+                  aria-label={moreLabel(item, actions)}
                   onClick={() => openActions(item)}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
