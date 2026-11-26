@@ -230,3 +230,142 @@ export async function getWorkoutDetail(
       })),
   };
 }
+
+export type EvolutionVersion = LoadVersion & {
+  exerciseId: string;
+  planId: string;
+  planTitle: string;
+  /** First version of a later plan in the chain: the chart marks the plan change here. */
+  planStart: boolean;
+};
+
+export type ExerciseEvolution = {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  archived: boolean;
+  plan: { id: string; title: string; endedOn: string | null };
+  workout: { id: string; label: string; description: string | null };
+  versions: EvolutionVersion[];
+};
+
+type LineageRow = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  archived_at: string | null;
+  copied_from_id: string | null;
+  workouts: {
+    id: string;
+    label: string;
+    description: string | null;
+    workout_plans: { id: string; title: string; started_on: string; ended_on: string | null } | null;
+  } | null;
+  workout_exercise_loads: { effective_from: string; sets: number; reps: number; load_kg: number | null }[];
+};
+
+const LINEAGE_COLUMNS =
+  "id, name, image_url, archived_at, copied_from_id, workouts ( id, label, description, workout_plans ( id, title, started_on, ended_on ) ), workout_exercise_loads ( effective_from, sets, reps, load_kg )";
+const MAX_LINEAGE = 24;
+
+/**
+ * RN-30: the evolution follows an exercise through the plans it was copied into (copied_from_id),
+ * both back to its origin and forward to its copies. Exercises written again by hand stay separate.
+ */
+export async function getExerciseEvolution(supabase: Client, exerciseId: string): Promise<ExerciseEvolution | null> {
+  const byId = new Map<string, LineageRow>();
+  const { data: start, error } = await supabase
+    .from("workout_exercises")
+    .select(LINEAGE_COLUMNS)
+    .eq("id", exerciseId)
+    .maybeSingle()
+    .returns<LineageRow | null>();
+  if (error) throw error;
+  if (!start?.workouts?.workout_plans) return null;
+  byId.set(start.id, start);
+
+  let back = start.copied_from_id;
+  while (back && !byId.has(back) && byId.size < MAX_LINEAGE) {
+    const { data, error: backError } = await supabase
+      .from("workout_exercises")
+      .select(LINEAGE_COLUMNS)
+      .eq("id", back)
+      .maybeSingle()
+      .returns<LineageRow | null>();
+    if (backError) throw backError;
+    if (!data) break;
+    byId.set(data.id, data);
+    back = data.copied_from_id;
+  }
+
+  let frontier = [start.id];
+  while (frontier.length > 0 && byId.size < MAX_LINEAGE) {
+    const { data, error: forwardError } = await supabase
+      .from("workout_exercises")
+      .select(LINEAGE_COLUMNS)
+      .in("copied_from_id", frontier)
+      .returns<LineageRow[]>();
+    if (forwardError) throw forwardError;
+    frontier = data.filter((row) => !byId.has(row.id)).map((row) => row.id);
+    for (const row of data) byId.set(row.id, row);
+  }
+
+  const chain = [...byId.values()]
+    .filter((row) => row.workouts?.workout_plans)
+    .sort((a, b) =>
+      (a.workouts?.workout_plans?.started_on ?? "").localeCompare(b.workouts?.workout_plans?.started_on ?? ""),
+    );
+
+  const versions: EvolutionVersion[] = [];
+  chain.forEach((row, index) => {
+    const plan = row.workouts?.workout_plans;
+    if (!plan) return;
+    const own = row.workout_exercise_loads
+      .map(toLoadVersion)
+      .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    own.forEach((version, versionIndex) => {
+      // A copy's first version repeats the load in force; it stays as the plan-change marker.
+      const planStart = index > 0 && versionIndex === 0;
+      versions.push({ ...version, exerciseId: row.id, planId: plan.id, planTitle: plan.title, planStart });
+    });
+  });
+
+  const plan = start.workouts.workout_plans;
+  return {
+    id: start.id,
+    name: start.name,
+    imageUrl: start.image_url,
+    archived: Boolean(start.archived_at),
+    plan: { id: plan.id, title: plan.title, endedOn: plan.ended_on },
+    workout: { id: start.workouts.id, label: start.workouts.label, description: start.workouts.description },
+    versions,
+  };
+}
+
+export type PlanExercise = {
+  id: string;
+  workoutId: string;
+  name: string;
+  imageUrl: string | null;
+  archived: boolean;
+  versions: LoadVersion[];
+};
+
+/** Every exercise of the plan, archived ones included, for the read-only ended plan (RN-30). */
+export async function getPlanExercises(supabase: Client, workoutIds: string[]): Promise<PlanExercise[]> {
+  if (workoutIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("workout_exercises")
+    .select("id, workout_id, name, image_url, archived_at, position, workout_exercise_loads ( effective_from, sets, reps, load_kg )")
+    .in("workout_id", workoutIds)
+    .order("position");
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    workoutId: row.workout_id,
+    name: row.name,
+    imageUrl: row.image_url,
+    archived: Boolean(row.archived_at),
+    versions: row.workout_exercise_loads.map(toLoadVersion),
+  }));
+}

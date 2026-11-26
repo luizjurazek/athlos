@@ -1483,3 +1483,19 @@ button.gymExerciseBody:active {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.sheetLink {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  font-size: var(--text-footnote);
+  font-weight: var(--font-weight-strong);
+}
+
+.sheetLink:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

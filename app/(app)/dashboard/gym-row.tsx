@@ -339,7 +339,7 @@ function originLabel(gym: GymDay) {
     : `Pela agenda de ${name}`;
 }
 
-function SwapWorkoutSheet({
+export function SwapWorkoutSheet({
   objective,
   gym,
   current,
@@ -457,6 +457,9 @@ function LoadEditorSheet({
           {label}
         </button>
       </div>
+      <Link className={styles.sheetLink} href={`/workouts/exercises/${exercise.id}`}>
+        Ver evolução
+      </Link>
     </Sheet>
   );
 }

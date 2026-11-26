@@ -10,7 +10,9 @@ import { requireUser } from "@/app/utils/supabase/user";
 import { WEEKDAYS } from "@/app/utils/weekdays";
 import ui from "../../objectives/objectives.module.css";
 import { endPlan } from "../actions";
-import { getPlan, type PlanDetail } from "../data";
+import { getLoadOn, formatLoad } from "@/app/utils/workout-loads";
+import { getPlan, getPlanExercises, type PlanDetail } from "../data";
+import { ExerciseImage } from "../exercise-image";
 import { PlanActionsPanel } from "../end-plan-panel";
 import { Chevron, PlanObjectivePill, WorkoutLetter } from "../workout-letter";
 import styles from "../workouts.module.css";
@@ -74,6 +76,9 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
         )}
       </div>
 
+      {plan.endedOn ? (
+        <EndedPlanWorkouts plan={plan} endedOn={plan.endedOn} />
+      ) : (
       <div className={styles.detailColumns}>
         <section className={ui.section}>
           <h2 className={ui.sectionTitle}>Treinos</h2>
@@ -95,6 +100,7 @@ async function PlanDetailView({ params }: Pick<PageProps<"/workouts/[id]">, "par
 
         <ScheduleSection plan={plan} />
       </div>
+      )}
 
       {active && <PlanActionsPanel planId={plan.id} endAction={endPlan.bind(null, plan.id)} />}
     </>
@@ -150,5 +156,71 @@ function ScheduleSection({ plan }: { plan: PlanDetail }) {
       </ul>
       <p className={ui.hint}>&quot;Sem treino fixo&quot; faz o Hoje perguntar qual treino fazer no dia.</p>
     </section>
+  );
+}
+
+/** RN-30: an ended plan stays readable, with its sessions, removed exercises and final loads. */
+async function EndedPlanWorkouts({ plan, endedOn }: { plan: PlanDetail; endedOn: string }) {
+  const supabase = createClient(await cookies());
+  const workoutIds = plan.workouts.map((workout) => workout.id);
+  const [exercises, sessions] = await Promise.all([
+    getPlanExercises(supabase, workoutIds),
+    workoutIds.length > 0
+      ? supabase.from("activity_sessions").select("workout_id").in("workout_id", workoutIds)
+      : null,
+  ]);
+  if (sessions?.error) throw sessions.error;
+  const sessionCount = (workoutId: string) =>
+    sessions?.data.filter((session) => session.workout_id === workoutId).length ?? 0;
+
+  return (
+    <div className={styles.endedWorkouts}>
+      <p className={ui.hint}>Ficha encerrada: só leitura. Toque num exercício para ver a evolução.</p>
+      {plan.workouts.map((workout) => {
+        const items = exercises.filter((exercise) => exercise.workoutId === workout.id);
+        const count = sessionCount(workout.id);
+        return (
+          <section key={workout.id} className={ui.section}>
+            <div className={styles.workoutHeader}>
+              <WorkoutLetter label={workout.label} />
+              <div>
+                <h2 className={ui.rowTitle}>{workout.description ?? `Treino ${workout.label}`}</h2>
+                <p className={ui.rowMeta}>
+                  {count === 1 ? "1 sessão" : `${count} sessões`} · {exerciseCount(items.length)}
+                </p>
+              </div>
+            </div>
+            {items.length === 0 ? (
+              <p className={ui.empty}>Sem exercícios.</p>
+            ) : (
+              <ul className={`${ui.list} ${styles.list}`}>
+                {items.map((exercise) => {
+                  const final = getLoadOn(exercise.versions, endedOn).current;
+                  return (
+                    <li key={exercise.id}>
+                      <Link className={styles.workoutRow} href={`/workouts/exercises/${exercise.id}`}>
+                        <ExerciseImage src={exercise.imageUrl} />
+                        <span className={ui.rowText}>
+                          <span className={`${ui.rowTitle} ${exercise.archived ? styles.ended : ""}`}>
+                            {exercise.name}
+                          </span>
+                          <span className={ui.rowMeta}>{final ? `Final: ${formatLoad(final)}` : "Sem carga"}</span>
+                        </span>
+                        {exercise.archived && (
+                          <span className={styles.pill} data-tone="muted">
+                            removido
+                          </span>
+                        )}
+                        <Chevron />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }

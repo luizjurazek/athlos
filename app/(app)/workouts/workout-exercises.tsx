@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { formatDayMonth } from "@/app/utils/dates";
 import {
@@ -94,7 +95,9 @@ export function WorkoutExercises({
             return (
               <li key={exercise.id}>
                 {readOnly ? (
-                  <div className={styles.exerciseRow}>{content}</div>
+                  <Link className={styles.exerciseRow} href={`/workouts/exercises/${exercise.id}`}>
+                    {content}
+                  </Link>
                 ) : (
                   <button
                     type="button"
@@ -523,6 +526,9 @@ function EditSheet({
           </button>
         )}
       </div>
+      <Link className={styles.evolutionLink} href={`/workouts/exercises/${exercise.id}`}>
+        Ver evolução
+      </Link>
       {confirmRemove && (
         <p className={sheetStyles.sheetInfo}>
           {hasHistory
