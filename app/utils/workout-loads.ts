@@ -17,6 +17,11 @@ export function formatLoad(load: LoadValues) {
   return `${load.sets} × ${load.reps} · ${load.loadKg == null ? "peso corporal" : formatKg(load.loadKg)}`;
 }
 
+/** Short form for tight lists: "3×10 · 8 kg". */
+export function formatLoadCompact(load: LoadValues) {
+  return `${load.sets}×${load.reps} · ${load.loadKg == null ? "peso corp." : formatKg(load.loadKg)}`;
+}
+
 export function sameLoad(a: LoadValues, b: LoadValues) {
   return a.sets === b.sets && a.reps === b.reps && a.loadKg === b.loadKg;
 }

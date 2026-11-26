@@ -1296,7 +1296,8 @@
 .gymStrip:focus-visible,
 .gymTextButton:focus-visible,
 .gymExerciseCheck:focus-visible,
-.gymExerciseBody:focus-visible {
+.gymExerciseName:focus-visible,
+.gymExerciseLoad:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
@@ -1331,12 +1332,6 @@
   padding: 0 var(--space-3) var(--space-3) var(--space-4);
 }
 
-.gymPanelHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
 
 .gymPanelTitle {
   font-size: var(--text-footnote);
@@ -1432,45 +1427,18 @@
 
 .gymExercise[data-done="true"] .gymExerciseName {
   color: var(--color-text-muted);
+  text-decoration: line-through;
 }
 
-.gymExerciseBody {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: calc(var(--touch-target) + var(--space-4));
-  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-2);
-  border: none;
-  border-radius: var(--radius-md);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
 
-button.gymExerciseBody {
-  cursor: pointer;
-}
 
-button.gymExerciseBody:active {
-  background: var(--color-surface-muted);
-}
 
-.gymExerciseName {
-  font-weight: var(--font-weight-medium);
-  overflow-wrap: anywhere;
-}
 
-.gymLoad {
-  font-size: var(--text-footnote);
-  font-variant-numeric: tabular-nums;
-}
 
 @media (hover: hover) {
   .gymStrip:hover,
-  button.gymExerciseBody:hover {
+  button.gymExerciseName:hover,
+  button.gymExerciseLoad:hover {
     background: var(--color-surface-muted);
   }
 }
@@ -1498,4 +1466,62 @@ button.gymExerciseBody:active {
 .sheetLink:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+.gymExerciseName {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+button.gymExerciseName {
+  cursor: zoom-in;
+}
+
+.gymExerciseLoad {
+  flex-shrink: 0;
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+button.gymExerciseLoad {
+  text-decoration: underline dotted var(--color-border-strong);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+button.gymExerciseName:active,
+button.gymExerciseLoad:active {
+  background: var(--color-surface-muted);
+}
+
+.gymPanelFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.gymPanelFooter p {
+  flex: 1;
 }

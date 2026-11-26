@@ -5,8 +5,8 @@ import { startTransition, useId, useOptimistic, useState, useSyncExternalStore, 
 import { formatDayMonth, formatShortDate, getWeekday } from "@/app/utils/dates";
 import { WEEKDAYS } from "@/app/utils/weekdays";
 import {
-  describeLoadChange,
   formatLoad,
+  formatLoadCompact,
   hasLoadErrors,
   sameLoad,
   validateLoad,
@@ -168,12 +168,6 @@ export function GymPanel({
           ) : (
             workout && (
               <>
-                <div className={styles.gymPanelHeader}>
-                  <span className={styles.gymPanelTitle}>{workoutName(workout)}</span>
-                  <button type="button" className={styles.gymTextButton} onClick={() => setSwapOpen(true)}>
-                    Trocar treino
-                  </button>
-                </div>
                 {exercises.length === 0 ? (
                   <div className={styles.gymEmpty}>
                     <p>Este treino ainda não tem exercícios.</p>
@@ -185,21 +179,7 @@ export function GymPanel({
                   <ul className={styles.gymExercises}>
                     {exercises.map((exercise) => {
                       const done = doneIds.includes(exercise.id);
-                      const content = (
-                        <>
-                          <span className={styles.rowText}>
-                            <span className={styles.gymExerciseName}>{exercise.name}</span>
-                            {exercise.current && (
-                              <span className={styles.gymLoad}>{formatLoad(exercise.current)}</span>
-                            )}
-                            {exercise.current && (
-                              <span className={styles.rowMeta}>
-                                {describeLoadChange(exercise.current, exercise.previous, today)}
-                              </span>
-                            )}
-                          </span>
-                        </>
-                      );
+                      const load = exercise.current ? formatLoadCompact(exercise.current) : "Sem carga";
                       return (
                         <li key={exercise.id} className={styles.gymExercise} data-done={done || undefined}>
                           {!future && (
@@ -222,24 +202,28 @@ export function GymPanel({
                               </span>
                             </button>
                           )}
-                          <PreviewThumb
-                            src={exercise.imageUrl}
-                            name={exercise.name}
-                            onOpen={() => setPhoto({ exercise, fromEditor: false })}
-                          />
+                          {exercise.imageUrl ? (
+                            <button
+                              type="button"
+                              className={styles.gymExerciseName}
+                              aria-label={`${exercise.name}: ver foto`}
+                              onClick={() => setPhoto({ exercise, fromEditor: false })}
+                            >
+                              {exercise.name}
+                            </button>
+                          ) : (
+                            <span className={styles.gymExerciseName}>{exercise.name}</span>
+                          )}
                           {future ? (
-                            <div className={styles.gymExerciseBody}>{content}</div>
+                            <span className={styles.gymExerciseLoad}>{load}</span>
                           ) : (
                             <button
                               type="button"
-                              className={styles.gymExerciseBody}
-                              aria-label={`${exercise.name}${exercise.current ? `, ${formatLoad(exercise.current)}` : ""}. Ajustar carga`}
+                              className={styles.gymExerciseLoad}
+                              aria-label={`${exercise.name}, ${exercise.current ? formatLoad(exercise.current) : "sem carga"}. Ajustar carga`}
                               onClick={() => setEditing(exercise)}
                             >
-                              {content}
-                              <svg className={styles.gymChevron} viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="m9 5 7 7-7 7" />
-                              </svg>
+                              {load}
                             </button>
                           )}
                         </li>
@@ -247,7 +231,12 @@ export function GymPanel({
                     })}
                   </ul>
                 )}
-                {future && <p className={styles.sheetInfo}>Dia futuro: as cargas só podem ser ajustadas no dia.</p>}
+                <div className={styles.gymPanelFooter}>
+                  {future && <p className={styles.sheetInfo}>Dia futuro: ajuste de carga só no dia.</p>}
+                  <button type="button" className={styles.gymTextButton} onClick={() => setSwapOpen(true)}>
+                    Trocar treino
+                  </button>
+                </div>
               </>
             )
           )}
