@@ -18,6 +18,7 @@ import {
   formatMonthYear,
   getUserToday,
   getWeekday,
+  formatShortDate,
   isDay,
 } from "@/app/utils/dates";
 import { getOccurrence, getRoutineChanges, type DayChanges } from "@/app/utils/occurrences";
@@ -26,6 +27,11 @@ import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { formatWeekdays, WEEKDAYS } from "@/app/utils/weekdays";
 import { getUserTimezone } from "../../dashboard/day-objectives";
+import { getGymDays, type GymDay } from "../../dashboard/gym-day";
+import { ExerciseImage } from "../../workouts/exercise-image";
+import { formatLoad } from "@/app/utils/workout-loads";
+import { isWithinWorkoutSwapWindow } from "@/app/utils/workouts";
+import { DayWorkoutSwap } from "../day-workout-card";
 import { CorrectionList } from "../correction-list";
 import { ObjectiveBadge } from "../objective-badge";
 import styles from "../objectives.module.css";
@@ -88,7 +94,7 @@ async function ObjectiveDetail({
   params,
   searchParams,
 }: Pick<PageProps<"/objectives/[id]">, "params" | "searchParams">) {
-  const [{ id }, { month: requestedMonth }] = await Promise.all([params, searchParams]);
+  const [{ id }, { month: requestedMonth, day: requestedDay }] = await Promise.all([params, searchParams]);
   if (!UUID.test(id)) notFound();
   const user = await requireUser();
   const supabase = createClient(await cookies());
@@ -175,6 +181,39 @@ async function ObjectiveDetail({
     }
   }
 
+  // Task 18: gym objectives show the workout letter on session days and the loads of a picked day.
+  const isGym = objective.activity_type === "gym";
+  const sessionsResult = isGym
+    ? await supabase.from("activity_sessions").select("day, workouts ( label )").eq("objective_id", id)
+    : null;
+  if (sessionsResult?.error) throw sessionsResult.error;
+  const letters = new Map(
+    (sessionsResult?.data ?? []).flatMap((session) =>
+      session.workouts ? [[session.day, session.workouts.label] as const] : [],
+    ),
+  );
+  const selectedDay =
+    isGym && typeof requestedDay === "string" && isDay(requestedDay) && requestedDay <= addDays(today, 14)
+      ? requestedDay
+      : null;
+  const selectedOccurrence = selectedDay
+    ? getOccurrence({ id, weekdays: objective.weekdays, createdDay }, selectedDay, changes)
+    : null;
+  const selectedGym =
+    selectedDay && selectedOccurrence && (selectedOccurrence.due || letters.has(selectedDay))
+      ? (await getGymDays(supabase, [{ id, reschedule: selectedOccurrence.reschedule }], selectedDay))[id]
+      : undefined;
+
+  const activePlan = isGym
+    ? await supabase
+        .from("workout_plans")
+        .select("id, title, workouts ( id, label, description ), workout_schedule ( weekday, workout_id )")
+        .eq("objective_id", id)
+        .is("ended_on", null)
+        .maybeSingle()
+    : null;
+  if (activePlan?.error) throw activePlan.error;
+
   const meta = [formatWeekdays(objective.weekdays).toLowerCase()];
   if (objective.reschedulable) meta.push("pode mudar de dia");
   if (alternativeTitles.length > 0) meta.push(`pode ser trocado por ${formatList(alternativeTitles)}`);
@@ -205,12 +244,37 @@ async function ObjectiveDetail({
           today={today}
           getState={getState}
           received={received}
+          letters={letters}
+          selectedDay={selectedDay}
           objectiveId={id}
           canGoBack={month > firstMonth}
           canGoForward={month < thisMonth}
         />
 
         <div className={styles.detailSide}>
+          {selectedDay && selectedGym && (
+            <SelectedDayWorkout
+              objective={{ id, title: objective.title, checked: checkedDays.has(selectedDay) }}
+              day={selectedDay}
+              today={today}
+              gym={selectedGym}
+              canSwap={
+                Boolean(selectedOccurrence?.due) &&
+                isWithinWorkoutSwapWindow(selectedDay, today) &&
+                !checkedDays.has(selectedDay)
+              }
+              swapBlockedReason={
+                checkedDays.has(selectedDay) ? "Dia com check: desmarque no Hoje para trocar o treino." : undefined
+              }
+            />
+          )}
+          {isGym && (
+            <PlanSection
+              objectiveId={id}
+              weekdays={objective.weekdays}
+              plan={activePlan?.data ?? null}
+            />
+          )}
           <div className={styles.streaks}>
             <div className={styles.streakCard}>
               <p className={styles.streakValue}>
@@ -255,6 +319,8 @@ function Calendar({
   today,
   getState,
   received,
+  letters,
+  selectedDay,
   objectiveId,
   canGoBack,
   canGoForward,
@@ -263,6 +329,8 @@ function Calendar({
   today: string;
   getState: (day: string) => DayState;
   received: ReadonlySet<string>;
+  letters: ReadonlyMap<string, string>;
+  selectedDay: string | null;
   objectiveId: string;
   canGoBack: boolean;
   canGoForward: boolean;
@@ -303,16 +371,36 @@ function Calendar({
               <div key={index} role="row" className={styles.calendarRow}>
                 {week.map((day, cell) =>
                   day ? (
-                    <span
-                      key={day}
-                      role="cell"
-                      className={styles.calendarDay}
-                      data-state={getState(day)}
-                      data-received={received.has(day) || undefined}
-                      data-today={day === today || undefined}
-                      aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", realocado ou extra" : ""}`}
-                    >
-                      {Number(day.slice(8))}
+                    <span key={day} role="cell" className={styles.calendarCell}>
+                      {letters.has(day) ? (
+                        <Link
+                          className={styles.calendarDay}
+                          href={`/objectives/${objectiveId}?month=${month.slice(0, 7)}&day=${day}`}
+                          scroll={false}
+                          data-state={getState(day)}
+                          data-received={received.has(day) || undefined}
+                          data-today={day === today || undefined}
+                          aria-current={day === selectedDay ? "date" : undefined}
+                          aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}, treino ${letters.get(day)}. Ver cargas do dia`}
+                        >
+                          {Number(day.slice(8))}
+                        </Link>
+                      ) : (
+                        <span
+                          className={styles.calendarDay}
+                          data-state={getState(day)}
+                          data-received={received.has(day) || undefined}
+                          data-today={day === today || undefined}
+                          aria-label={`${formatLongDate(day)}: ${STATE_LABELS[getState(day)]}${received.has(day) ? ", realocado ou extra" : ""}`}
+                        >
+                          {Number(day.slice(8))}
+                        </span>
+                      )}
+                      {letters.has(day) && (
+                        <span className={styles.calendarLetter} aria-hidden="true">
+                          {letters.get(day)}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span key={`empty-${cell}`} role="cell" />
@@ -372,5 +460,124 @@ function MonthLink({
     <PendingLink className={styles.monthLink} href={href} pendingKey={href} aria-label={label}>
       {icon}
     </PendingLink>
+  );
+}
+
+function SelectedDayWorkout({
+  objective,
+  day,
+  today,
+  gym,
+  canSwap,
+  swapBlockedReason,
+}: {
+  objective: { id: string; title: string; checked: boolean };
+  day: string;
+  today: string;
+  gym: GymDay;
+  canSwap: boolean;
+  swapBlockedReason?: string;
+}) {
+  const workout = gym.workouts.find((item) => item.id === gym.workout?.workoutId) ?? null;
+  const exercises = workout ? gym.exercises.filter((exercise) => exercise.workoutId === workout.id) : [];
+  return (
+    <section className={styles.section} aria-labelledby="day-workout-title">
+      <h2 id="day-workout-title" className={styles.sectionTitle}>
+        {formatShortDate(day)}
+        {workout ? ` · Treino ${workout.label}${workout.description ? ` — ${workout.description}` : ""}` : ""}
+      </h2>
+      {!workout ? (
+        <p className={styles.empty}>Sem treino registrado neste dia.</p>
+      ) : exercises.length === 0 ? (
+        <p className={styles.empty}>Este treino não tinha exercícios.</p>
+      ) : (
+        <ul className={styles.list}>
+          {exercises.map((exercise) => (
+            <li key={exercise.id}>
+              <Link className={styles.row} href={`/workouts/exercises/${exercise.id}`}>
+                <ExerciseImage src={exercise.imageUrl} />
+                <span className={styles.rowText}>
+                  <span className={styles.rowTitle}>{exercise.name}</span>
+                  <span className={styles.rowMeta}>
+                    {exercise.current ? formatLoad(exercise.current) : "Sem carga neste dia"}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className={styles.hint}>
+        {day === today ? "Cargas de hoje." : `Cargas como estavam em ${formatShortDate(day)}.`}
+      </p>
+      {workout && (
+        <div className={styles.list}>
+          <DayWorkoutSwap
+            objective={objective}
+            gym={gym}
+            current={workout}
+            day={day}
+            canSwap={canSwap}
+            reason={swapBlockedReason}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PlanSection({
+  objectiveId,
+  weekdays,
+  plan,
+}: {
+  objectiveId: string;
+  weekdays: number[];
+  plan: {
+    id: string;
+    title: string;
+    workouts: { id: string; label: string; description: string | null }[];
+    workout_schedule: { weekday: number; workout_id: string }[];
+  } | null;
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="plan-title">
+      <h2 id="plan-title" className={styles.sectionTitle}>
+        Ficha e treinos
+      </h2>
+      {!plan ? (
+        <p className={styles.empty}>Sem ficha. Escolha uma em Editar para ver o treino do dia no Hoje.</p>
+      ) : (
+        <ul className={styles.list}>
+          <li>
+            <Link className={styles.row} href={`/workouts/${plan.id}`}>
+              <span className={styles.rowText}>
+                <span className={styles.rowTitle}>{plan.title}</span>
+                <span className={styles.rowMeta}>
+                  {plan.workouts.length === 1 ? "1 treino" : `${plan.workouts.length} treinos`}
+                </span>
+              </span>
+            </Link>
+          </li>
+          {WEEKDAYS.filter((day) => weekdays.includes(day.value)).map((day) => {
+            const entry = plan.workout_schedule.find((row) => row.weekday === day.value);
+            const workout = entry && plan.workouts.find((item) => item.id === entry.workout_id);
+            return (
+              <li key={day.value} className={styles.scheduleDayRow}>
+                <span>{day.long}</span>
+                <span className={styles.rowMeta}>
+                  {workout
+                    ? `${workout.label}${workout.description ? ` — ${workout.description}` : ""}`
+                    : "Sem treino fixo"}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <Link className={styles.editLink} href={`/objectives/${objectiveId}/edit`}>
+        {plan ? "Alterar ficha ou treinos" : "Escolher ficha"}
+      </Link>
+    </section>
   );
 }

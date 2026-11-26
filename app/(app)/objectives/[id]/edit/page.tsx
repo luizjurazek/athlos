@@ -6,7 +6,9 @@ import { BackLink } from "@/app/components/BackLink";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
 import { getLinkableGoals } from "../../../goals/data";
-import { getAlternativeOptions } from "../../data";
+import { getAlternativeOptions, getGymFormContext } from "../../data";
+import { getUserToday } from "@/app/utils/dates";
+import { getUserTimezone } from "../../../dashboard/day-objectives";
 import {
   archiveObjective,
   deleteObjective,
@@ -17,20 +19,24 @@ import { ObjectiveActionsPanel } from "../../objective-actions-panel";
 import { ObjectiveForm } from "../../objective-form";
 import styles from "../../objectives.module.css";
 
-export default function EditObjectivePage({ params }: PageProps<"/objectives/[id]/edit">) {
+export default function EditObjectivePage({ params, searchParams }: PageProps<"/objectives/[id]/edit">) {
   return (
     <main className={styles.content}>
       <Suspense fallback={<SkeletonForm />}>
-        <EditObjective params={params} />
+        <EditObjective params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">, "params">) {
-  const { id } = await params;
-  await requireUser();
+async function EditObjective({
+  params,
+  searchParams,
+}: Pick<PageProps<"/objectives/[id]/edit">, "params" | "searchParams">) {
+  const [{ id }, { plan: requestedPlan }] = await Promise.all([params, searchParams]);
+  const user = await requireUser();
   const supabase = createClient(await cookies());
+  const today = getUserToday(await getUserTimezone(supabase, user.id));
   // An invalid uuid makes Postgres error out; treat it like a missing row.
   const { data: objective } = await supabase
     .from("objectives")
@@ -38,9 +44,10 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
     .eq("id", id)
     .maybeSingle();
   if (!objective) notFound();
-  const [{ goals, linkedIds }, alternatives] = await Promise.all([
+  const [{ goals, linkedIds }, alternatives, gym] = await Promise.all([
     getLinkableGoals(supabase, id),
     getAlternativeOptions(supabase, id),
+    getGymFormContext(supabase, today, id),
   ]);
 
   return (
@@ -54,6 +61,13 @@ async function EditObjective({ params }: Pick<PageProps<"/objectives/[id]/edit">
         linkedGoalIds={linkedIds}
         alternatives={alternatives.options}
         alternativeIds={alternatives.linkedIds}
+        gym={gym}
+        // "Nova ficha a partir desta" lands here with the new plan picked, to confirm each day's workout.
+        initialPlanId={
+          typeof requestedPlan === "string" && gym.plans.some((plan) => plan.id === requestedPlan)
+            ? requestedPlan
+            : undefined
+        }
         submitLabel="Salvar"
       />
       <ObjectiveActionsPanel

@@ -6,7 +6,7 @@ import { getBackfillStart } from "@/app/utils/checks";
 import { getUserToday } from "@/app/utils/dates";
 import { createClient } from "@/app/utils/supabase/server";
 import { requireUser } from "@/app/utils/supabase/user";
-import { normalizeWeekdays } from "@/app/utils/weekdays";
+import { formatWeekdays, normalizeWeekdays } from "@/app/utils/weekdays";
 import { getUserTimezone } from "../dashboard/day-objectives";
 import {
   isObjectiveColor,
@@ -14,7 +14,13 @@ import {
   TITLE_MAX_LENGTH,
 } from "./options";
 
-export type FormState = { error?: string } | undefined;
+export type ObjectiveFieldErrors = {
+  weekdays?: string;
+  activityType?: string;
+  plan?: string;
+  schedule?: string;
+};
+export type FormState = { error?: string; errors?: ObjectiveFieldErrors } | undefined;
 
 
 type Client = ReturnType<typeof createClient>;
@@ -115,7 +121,72 @@ type ObjectiveInput = {
   icon: string | null;
   weekdays: number[];
   reschedulable: boolean;
+  activity_type: "gym" | null;
 };
+
+const ACTIVITY_OVERLAP = "objectives_activity_weekdays_overlap";
+
+/** RN-33: another active gym objective already on one of these weekdays. */
+async function findActivityConflict(
+  supabase: Client,
+  input: Pick<ObjectiveInput, "activity_type" | "weekdays">,
+  objectiveId?: string,
+): Promise<string | null> {
+  if (!input.activity_type) return null;
+  let query = supabase
+    .from("objectives")
+    .select("title, weekdays")
+    .eq("activity_type", input.activity_type)
+    .is("archived_at", null)
+    .overlaps("weekdays", input.weekdays);
+  if (objectiveId) query = query.neq("id", objectiveId);
+  const { data, error } = await query;
+  if (error) throw error;
+  const other = data[0];
+  if (!other) return null;
+  const shared = other.weekdays.filter((day) => input.weekdays.includes(day));
+  return `${formatWeekdays(shared)} já ${shared.length === 1 ? "é" : "são"} da ${other.title}. Dois objetivos de academia não podem cair no mesmo dia.`;
+}
+
+async function getActivePlanId(supabase: Client, objectiveId: string) {
+  const { data, error } = await supabase
+    .from("workout_plans")
+    .select("id")
+    .eq("objective_id", objectiveId)
+    .is("ended_on", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
+/**
+ * RN-25/RN-34: the objective owns the link to its plan and each weekday's workout. The RPC links the
+ * chosen free plan (ending the previous one) or unlinks it, and replaces the schedule.
+ */
+async function savePlanChoice(
+  supabase: Client,
+  objectiveId: string,
+  formData: FormData,
+  input: ObjectiveInput,
+  userId: string,
+) {
+  const value = formData.get("plan_id");
+  const planId = typeof value === "string" && value ? value : null;
+  const schedule = planId
+    ? input.weekdays.flatMap((weekday) => {
+        const workoutId = formData.get(`schedule_${weekday}`);
+        return typeof workoutId === "string" && workoutId ? [{ weekday, workout_id: workoutId }] : [];
+      })
+    : [];
+  const today = getUserToday(await getUserTimezone(supabase, userId));
+  const { error } = await supabase.rpc("set_objective_plan", {
+    objective_id: objectiveId,
+    today,
+    plan_id: planId ?? undefined,
+    schedule,
+  });
+  return error;
+}
 
 function parseObjective(
   formData: FormData,
@@ -144,6 +215,7 @@ function parseObjective(
       icon: isObjectiveIcon(icon) ? icon : null,
       weekdays,
       reschedulable: formData.get("reschedulable") === "on",
+      activity_type: formData.get("activity_type") === "gym" ? "gym" : null,
     },
   };
 }
@@ -152,16 +224,21 @@ export async function createObjective(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = parseObjective(formData);
   if ("error" in parsed) return { error: parsed.error };
 
   const supabase = createClient(await cookies());
+  const conflict = await findActivityConflict(supabase, parsed.input).catch(() => null);
+  if (conflict) return { errors: { weekdays: conflict } };
   const { data, error } = await supabase
     .from("objectives")
     .insert(parsed.input)
     .select("id")
     .single();
+  if (error?.message.includes(ACTIVITY_OVERLAP) || error?.details?.includes(ACTIVITY_OVERLAP)) {
+    return { errors: { weekdays: "Outro objetivo de academia já está nesses dias." } };
+  }
   if (error) return { error: "Não foi possível salvar o objetivo. Tente de novo." };
 
   const goalIds = parseIds(formData, "goal_ids");
@@ -187,6 +264,14 @@ export async function createObjective(
     return { error: "Não foi possível salvar as trocas do objetivo. Tente de novo." };
   }
 
+  const planError = parsed.input.activity_type
+    ? await savePlanChoice(supabase, data.id, formData, parsed.input, user.id)
+    : null;
+  if (planError) {
+    console.error("Failed to link workout plan", planError);
+    return { error: "O objetivo foi criado, mas não deu para vincular a ficha. Tente pela edição." };
+  }
+
   redirect("/objectives");
 }
 
@@ -200,6 +285,20 @@ export async function updateObjective(
   if ("error" in parsed) return { error: parsed.error };
 
   const supabase = createClient(await cookies());
+  try {
+    const conflict = await findActivityConflict(supabase, parsed.input, id);
+    if (conflict) return { errors: { weekdays: conflict } };
+    if (!parsed.input.activity_type && (await getActivePlanId(supabase, id))) {
+      return {
+        errors: {
+          activityType: "Este objetivo tem uma ficha ativa. Encerre ou desvincule a ficha para mudar para Comum.",
+        },
+      };
+    }
+  } catch (error) {
+    console.error("Failed to validate the objective activity", error);
+    return { error: "Não foi possível salvar o objetivo. Tente de novo." };
+  }
   if (!parsed.input.reschedulable) {
     const pending = await countPendingReschedules(supabase, id, user.id).catch(() => null);
     if (pending === null) return { error: "Não foi possível salvar o objetivo. Tente de novo." };
@@ -262,25 +361,48 @@ export async function updateObjective(
     return { error: "O objetivo foi salvo, mas não deu para atualizar as trocas. Tente de novo." };
   }
 
+  if (parsed.input.activity_type) {
+    const planError = await savePlanChoice(supabase, id, formData, parsed.input, user.id);
+    if (planError) {
+      console.error("Failed to save the objective plan", planError);
+      return {
+        errors:
+          planError.code === "23503"
+            ? { plan: "Essa ficha não está mais livre ou um treino mudou. Atualize a página." }
+            : { schedule: "Não deu para salvar a ficha e os treinos de cada dia. Tente de novo." },
+      };
+    }
+  }
+
   redirect(`/objectives/${id}`);
 }
 
-async function setArchived(id: string, archived: boolean) {
+async function setArchived(id: string, archived: boolean): Promise<FormState> {
   await requireUser();
   const supabase = createClient(await cookies());
-  await supabase
+  if (!archived) {
+    const { data: objective } = await supabase
+      .from("objectives")
+      .select("activity_type, weekdays")
+      .eq("id", id)
+      .maybeSingle();
+    const conflict = objective && (await findActivityConflict(supabase, objective, id).catch(() => null));
+    if (conflict) return { error: `Não dá para desarquivar: ${conflict} Mude os dias antes.` };
+  }
+  const { error } = await supabase
     .from("objectives")
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq("id", id);
+  if (error) return { error: "Não foi possível salvar o objetivo. Tente de novo." };
   redirect(`/objectives/${id}`);
 }
 
-export async function archiveObjective(id: string) {
-  await setArchived(id, true);
+export async function archiveObjective(id: string): Promise<FormState> {
+  return setArchived(id, true);
 }
 
-export async function unarchiveObjective(id: string) {
-  await setArchived(id, false);
+export async function unarchiveObjective(id: string): Promise<FormState> {
+  return setArchived(id, false);
 }
 
 export async function deleteObjective(id: string): Promise<FormState> {

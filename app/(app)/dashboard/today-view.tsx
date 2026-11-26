@@ -27,40 +27,46 @@ import type {
   DayOption,
   PendingItem,
 } from "./day-objectives";
+import type { GymDay } from "./gym-day";
+import { GymPanel, GymRowMeta, SwapWorkoutSheet, type LoadFailure } from "./gym-row";
 import { RescheduleSheet, type RescheduleSheetData } from "./reschedule-sheet";
+import { formatLoad } from "@/app/utils/workout-loads";
 import styles from "./dashboard.module.css";
 
 type SheetState =
   | { kind: "reschedule"; data: RescheduleSheetData }
-  | { kind: "actions" | "replace"; item: DayObjective }
+  | { kind: "actions" | "replace" | "undo-addition" | "workout"; item: DayObjective }
   | null;
 
-function getActions(item: DayObjective): DayAction[] {
-  if (item.addition || item.reschedule) return [];
+/** Secondary actions of a row, in the order the ⋯ sheet lists them. */
+function getActions(item: DayObjective, gym: GymDay | undefined): DayAction[] {
   const actions: DayAction[] = [];
-  if (item.reschedulable) actions.push("move");
-  if (item.alternatives.length > 0) actions.push("replace");
+  if (item.addition || item.reschedule) actions.push("undo");
+  else {
+    if (item.reschedulable) actions.push("move");
+    if (item.alternatives.length > 0) actions.push("replace");
+  }
+  // RN-28: the workout of a day can be swapped until the day is checked.
+  if (gym?.workout) actions.push("workout");
   return actions;
 }
 
-function moreLabel(item: DayObjective) {
-  if (item.addition) {
-    return item.addition.replacedObjectiveId
-      ? `${item.title}: desfazer troca`
-      : `${item.title}: tirar deste dia`;
-  }
-  if (item.reschedule) return `${item.title}: desfazer mudança de dia`;
-  const actions = getActions(item);
-  if (actions.length > 1) return `${item.title}: mudar de dia ou trocar`;
-  return actions[0] === "move"
-    ? `${item.title}: mudar de dia`
-    : `${item.title}: trocar por outro objetivo`;
+function undoTitle(item: DayObjective) {
+  if (item.addition) return item.addition.replacedObjectiveId ? "Desfazer troca" : "Tirar deste dia";
+  return "Desfazer mudança de dia";
 }
 
-function hasMore(item: DayObjective) {
-  return (
-    Boolean(item.addition || item.reschedule) || getActions(item).length > 0
+const ACTION_LABELS: Record<Exclude<DayAction, "undo">, string> = {
+  move: "mudar de dia",
+  replace: "trocar por outro objetivo",
+  workout: "trocar treino",
+};
+
+function moreLabel(item: DayObjective, actions: DayAction[]) {
+  const labels = actions.map((action) =>
+    action === "undo" ? undoTitle(item).toLowerCase() : ACTION_LABELS[action],
   );
+  return `${item.title}: ${labels.join(", ")}`;
 }
 
 type Failure = {
@@ -78,6 +84,7 @@ export function TodayView({
   blocked,
   pickerRange,
   dayOptions,
+  gymDays = {},
   streaks = {},
   goals,
 }: {
@@ -88,6 +95,7 @@ export function TodayView({
   blocked: Record<string, BlockedDays>;
   pickerRange: { from: string; to: string };
   dayOptions: DayOption[];
+  gymDays?: Record<string, GymDay>;
   streaks?: Record<string, ObjectiveStreak>;
   goals?: ReactNode;
 }) {
@@ -108,27 +116,25 @@ export function TodayView({
     });
   }
 
-  function openActions(item: DayObjective) {
-    if (item.addition) {
-      setSheet({ kind: "actions", item });
-      return;
-    }
-    if (item.reschedule) {
+  function runAction(item: DayObjective, action: DayAction) {
+    if (action === "move") openMove(item, day);
+    else if (action === "replace") setSheet({ kind: "replace", item });
+    else if (action === "workout") setSheet({ kind: "workout", item });
+    else if (item.addition) setSheet({ kind: "undo-addition", item });
+    else if (item.reschedule) {
       setSheet({
         kind: "reschedule",
-        data: {
-          mode: "undo",
-          objective: item,
-          reschedule: item.reschedule,
-          checked: item.checked,
-        },
+        data: { mode: "undo", objective: item, reschedule: item.reschedule, checked: item.checked },
       });
-      return;
     }
-    const actions = getActions(item);
-    if (actions.length > 1) setSheet({ kind: "actions", item });
-    else if (actions[0] === "move") openMove(item, day);
-    else setSheet({ kind: "replace", item });
+  }
+
+  function openActions(item: DayObjective) {
+    const actions = getActions(item, gymDays[item.id]);
+    // A checked day opens the list even for one action, so the blocked option can explain why.
+    const blockedAlone = item.checked && actions.length === 1 && actions[0] !== "undo";
+    if (actions.length > 1 || blockedAlone) setSheet({ kind: "actions", item });
+    else if (actions[0]) runAction(item, actions[0]);
   }
 
   function renderSheet() {
@@ -137,7 +143,8 @@ export function TodayView({
     if (sheet.kind === "reschedule")
       return <RescheduleSheet {...sheet.data} onClose={close} />;
     const { item } = sheet;
-    if (item.addition) {
+    const gym = gymDays[item.id];
+    if (sheet.kind === "undo-addition" && item.addition) {
       return (
         <AdditionUndoSheet
           objective={item}
@@ -148,17 +155,21 @@ export function TodayView({
         />
       );
     }
+    if (sheet.kind === "workout") {
+      const current = gym?.workouts.find((workout) => workout.id === gym.workout?.workoutId);
+      return gym && current ? (
+        <SwapWorkoutSheet objective={item} gym={gym} current={current} day={day} onClose={close} />
+      ) : null;
+    }
     if (sheet.kind === "actions") {
       return (
         <ActionsSheet
           objective={item}
           day={day}
           checked={item.checked}
-          onPick={(action) =>
-            action === "move"
-              ? openMove(item, day)
-              : setSheet({ kind: "replace", item })
-          }
+          actions={getActions(item, gym)}
+          undoTitle={undoTitle(item)}
+          onPick={(action) => runAction(item, action)}
           onClose={close}
         />
       );
@@ -186,6 +197,7 @@ export function TodayView({
       ),
   );
   const [failure, setFailure] = useState<Failure | null>(null);
+  const [loadFailure, setLoadFailure] = useState<LoadFailure | null>(null);
 
   function save(item: Pick<DayObjective, "id" | "title">, checked: boolean) {
     setFailure(null);
@@ -224,6 +236,35 @@ export function TodayView({
           ) : (
             <DaySummary done={done} total={items.length} />
           )}
+          {loadFailure && (
+            <div className={styles.toast} role="alert">
+              <svg className={styles.toastIcon} viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7.5v5.5M12 16.5v.01" />
+              </svg>
+              <div className={styles.toastBody}>
+                <p className={styles.toastTitle}>Não deu para salvar a carga</p>
+                <p className={styles.toastDetail}>
+                  {loadFailure.before
+                    ? `${loadFailure.exercise.name} voltou para ${formatLoad(loadFailure.before)}.`
+                    : `${loadFailure.exercise.name} voltou ao valor anterior.`}
+                </p>
+                <button type="button" className={styles.toastAction} onClick={loadFailure.retry}>
+                  Tentar de novo
+                </button>
+              </div>
+              <button
+                type="button"
+                className={styles.toastClose}
+                onClick={() => setLoadFailure(null)}
+                aria-label="Fechar aviso"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+          )}
           {failure && (
             <CheckErrorToast
               failure={failure}
@@ -250,8 +291,11 @@ export function TodayView({
           {day === today ? "Para hoje" : future ? "Programados" : "Neste dia"}
         </h2>
         <ul className={styles.list}>
-          {items.map((item) => (
-            <li key={item.id} className={styles.itemRow}>
+          {items.map((item) => {
+            const gym = item.activity_type === "gym" ? gymDays[item.id] : undefined;
+            const actions = getActions(item, gym);
+            const row = (
+            <div className={styles.itemRow}>
               <button
                 type="button"
                 role="checkbox"
@@ -273,6 +317,7 @@ export function TodayView({
                     <StreakBadge count={streakOf(item)} />
                   </span>
                   <span className={styles.rowMeta}>
+                    {gym && <GymRowMeta gym={gym} />}
                     {item.addition ? (
                       <span className={styles.movedBadge}>
                         {item.replacedTitle
@@ -289,15 +334,15 @@ export function TodayView({
                     ) : null}
                   </span>
                 </span>
-                {!hasMore(item) && (
+                {actions.length === 0 && (
                   <ObjectiveBadge color={item.color} icon={item.icon} />
                 )}
               </button>
-              {hasMore(item) && (
+              {actions.length > 0 && (
                 <button
                   type="button"
                   className={styles.moreButton}
-                  aria-label={moreLabel(item)}
+                  aria-label={moreLabel(item, actions)}
                   onClick={() => openActions(item)}
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -307,8 +352,23 @@ export function TodayView({
                   </svg>
                 </button>
               )}
-            </li>
-          ))}
+            </div>
+            );
+            return (
+              <li key={item.id}>
+                {row}
+                {gym && (
+                  <GymPanel
+                    objective={item}
+                    gym={gym}
+                    day={day}
+                    today={today}
+                    onLoadFailure={setLoadFailure}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
         <AddObjectiveButton day={day} today={today} options={dayOptions} />
       </section>
